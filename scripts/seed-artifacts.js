@@ -1,5 +1,22 @@
 // Script to seed test artifacts into the database via API
-const API_URL = process.env.API_URL || 'http://localhost:4000';
+// Use node-fetch if available, otherwise use global fetch (Node.js 18+)
+let fetch;
+try {
+  fetch = require('node-fetch');
+} catch (e) {
+  // Node.js 18+ has fetch globally
+  if (typeof globalThis.fetch === 'undefined') {
+    console.error('❌ Error: fetch is not available. Please install node-fetch: npm install node-fetch@2');
+    process.exit(1);
+  }
+  fetch = globalThis.fetch;
+}
+
+const API_URL = process.env.API_URL || 'https://archaeology-api.onrender.com';
+
+console.log('🌱 Seed Script Starting...');
+console.log('📍 API URL:', API_URL);
+console.log('');
 
 function generateUniqueId() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -10,14 +27,20 @@ function generateBarcodeId(index) {
   const timestamp = Date.now().toString().slice(-8);
   const random = Math.random().toString(36).substr(2, 4).toUpperCase();
   const paddedIndex = index.toString().padStart(4, '0');
+  // Add a small delay to ensure unique timestamps
   return `${prefix}${timestamp}${random}${paddedIndex}`;
 }
 
+// Helper to add delay between requests
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // Test artifacts with diverse historical periods and cultures
+// Note: Barcodes are generated dynamically in the loop to ensure uniqueness
 const testArtifacts = [
   {
     name: 'Neolithic Stone Axe Head',
-    barcode: generateBarcodeId(1),
     details: 'A well-preserved polished stone axe head from the Neolithic period, dating approximately 4000-2500 BCE. Made from fine-grained flint with evidence of deliberate shaping and polishing. This artifact represents early agricultural technology and stone tool craftsmanship. Found with remnants of a wooden haft attached, showing advanced composite tool construction.',
     locationFound: 'Excavation Site Alpha, Grid 7B, Layer 3',
     dateFound: '2023-05-15',
@@ -167,24 +190,29 @@ async function seedArtifacts() {
 
   for (let i = 0; i < testArtifacts.length; i++) {
     const artifactData = testArtifacts[i];
+    // Add small delay to ensure unique timestamps for barcodes
+    if (i > 0) {
+      await delay(100);
+    }
     const now = new Date().toISOString();
     const artifact = {
       id: generateUniqueId(),
       catalogId: catalogId,
       name: artifactData.name,
-      barcode: artifactData.barcode,
-      details: artifactData.details,
+      barcode: generateBarcodeId(i + 1), // Regenerate barcode with current timestamp
+      details: artifactData.details || '', // Ensure details is always a string
       length: artifactData.length || null,
       heightDepth: artifactData.heightDepth || null,
       width: artifactData.width || null,
-      locationFound: artifactData.locationFound,
-      dateFound: artifactData.dateFound,
+      locationFound: artifactData.locationFound || '',
+      dateFound: artifactData.dateFound || new Date().toISOString().split('T')[0],
       images2D: [],
       creationDate: now,
       lastModified: now,
     };
 
     try {
+      console.log(`\nCreating artifact ${i + 1}/${testArtifacts.length}: ${artifact.name}`);
       const res = await fetch(`${API_URL}/api/artifacts`, {
         method: 'POST',
         headers: {
@@ -194,17 +222,35 @@ async function seedArtifacts() {
         body: JSON.stringify(artifact),
       });
 
+      const status = res.status;
       if (res.ok) {
         successCount++;
-        console.log(`  ✅ ${i + 1}. ${artifact.name} (${artifact.barcode})`);
+        const created = await res.json();
+        console.log(`  ✅ ${i + 1}. ${artifact.name} (${artifact.barcode}) - Created with ID: ${created.id}`);
       } else {
         failCount++;
-        const error = await res.text();
-        console.log(`  ❌ ${i + 1}. ${artifact.name} - Failed: ${error}`);
+        let errorMessage = '';
+        try {
+          const errorData = await res.json();
+          errorMessage = JSON.stringify(errorData, null, 2);
+        } catch {
+          errorMessage = await res.text();
+        }
+        console.log(`  ❌ ${i + 1}. ${artifact.name} - Failed (${status}):`);
+        console.log(`     Error: ${errorMessage}`);
+        console.log(`     Request headers: x-user-role=admin`);
+        console.log(`     Catalog ID: ${catalogId}`);
+        // Only show full artifact data on first failure to avoid spam
+        if (i === 0) {
+          console.log(`     Artifact data:`, JSON.stringify(artifact, null, 2));
+        }
       }
     } catch (error) {
       failCount++;
-      console.log(`  ❌ ${i + 1}. ${artifact.name} - Error: ${error.message}`);
+      console.log(`  ❌ ${i + 1}. ${artifact.name} - Network Error: ${error.message}`);
+      if (error.stack && i === 0) {
+        console.log(`     Stack: ${error.stack}`);
+      }
     }
   }
 

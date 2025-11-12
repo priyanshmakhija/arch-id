@@ -184,33 +184,75 @@ app.post('/api/artifacts', (req, res) => {
   const parse = artifactSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: parse.error.flatten() });
   const a = parse.data;
-  const stmt = db.prepare(`
-    INSERT INTO artifacts (
-      id, catalogId, subCatalogId, name, barcode, details,
-      length, heightDepth, width,
-      locationFound, dateFound, images2D, image3D, video,
-      creationDate, lastModified
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  stmt.run(
-    a.id,
-    a.catalogId,
-    a.subCatalogId ?? null,
-    a.name,
-    a.barcode,
-    a.details,
-    a.length ?? null,
-    a.heightDepth ?? null,
-    a.width ?? null,
-    a.locationFound,
-    a.dateFound,
-    JSON.stringify(a.images2D ?? []),
-    a.image3D ?? null,
-    a.video ?? null,
-    a.creationDate,
-    a.lastModified
-  );
-  res.status(201).json(a);
+  
+  try {
+    // Verify catalog exists
+    const catalog = db.prepare('SELECT id FROM catalogs WHERE id = ?').get(a.catalogId);
+    if (!catalog) {
+      return res.status(400).json({ error: `Catalog with id "${a.catalogId}" does not exist` });
+    }
+    
+    // Check if barcode already exists
+    const existingBarcode = db.prepare('SELECT id FROM artifacts WHERE barcode = ?').get(a.barcode);
+    if (existingBarcode) {
+      return res.status(400).json({ error: `Artifact with barcode "${a.barcode}" already exists` });
+    }
+    
+    // Check if artifact ID already exists
+    const existingId = db.prepare('SELECT id FROM artifacts WHERE id = ?').get(a.id);
+    if (existingId) {
+      return res.status(400).json({ error: `Artifact with id "${a.id}" already exists` });
+    }
+    
+    const stmt = db.prepare(`
+      INSERT INTO artifacts (
+        id, catalogId, subCatalogId, name, barcode, details,
+        length, heightDepth, width,
+        locationFound, dateFound, images2D, image3D, video,
+        creationDate, lastModified
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    stmt.run(
+      a.id,
+      a.catalogId,
+      a.subCatalogId ?? null,
+      a.name,
+      a.barcode,
+      a.details,
+      a.length ?? null,
+      a.heightDepth ?? null,
+      a.width ?? null,
+      a.locationFound,
+      a.dateFound,
+      JSON.stringify(a.images2D ?? []),
+      a.image3D ?? null,
+      a.video ?? null,
+      a.creationDate,
+      a.lastModified
+    );
+    
+    res.status(201).json(a);
+  } catch (error: any) {
+    console.error('Error creating artifact:', error);
+    // Check for SQLite constraint errors
+    if (error.code === 'SQLITE_CONSTRAINT') {
+      if (error.message.includes('FOREIGN KEY')) {
+        return res.status(400).json({ error: `Catalog with id "${a.catalogId}" does not exist` });
+      }
+      if (error.message.includes('UNIQUE')) {
+        if (error.message.includes('barcode')) {
+          return res.status(400).json({ error: `Artifact with barcode "${a.barcode}" already exists` });
+        }
+        if (error.message.includes('id')) {
+          return res.status(400).json({ error: `Artifact with id "${a.id}" already exists` });
+        }
+      }
+      return res.status(400).json({ error: 'Database constraint violation', details: error.message });
+    }
+    // Generic error
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
 });
 
 const artifactUpdateSchema = z.object({

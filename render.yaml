@@ -22,9 +22,5 @@ services:
     staticPublishPath: ./build
     envVars:
       - key: REACT_APP_API_URL
-        fromService:
-          type: web
-          name: archaeology-api
-          property: host
-        format: https://${host}
+        value: https://archaeology-api.onrender.com
 

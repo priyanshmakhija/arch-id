@@ -1,27 +1,68 @@
 import { Artifact, AuthUser, Catalog } from '../types';
 import { AUTH_STORAGE_KEY } from '../context/AuthContext';
 
-// Get API URL from environment variable or use default
-// In production, this should be set during build time via REACT_APP_API_URL
+// Get API URL from environment variable, window variable, or use default
+// Priority:
+// 1. REACT_APP_API_URL (build-time environment variable)
+// 2. window.ARCHAEOLOGY_API_URL (runtime configuration from index.html)
+// 3. Runtime detection based on hostname
 const getApiUrl = (): string => {
   // Check if REACT_APP_API_URL is set (build-time variable)
-  if (process.env.REACT_APP_API_URL) {
-    return process.env.REACT_APP_API_URL;
+  // In compiled code, this will be replaced with the actual value or undefined
+  const envApiUrl = typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_URL
+    ? process.env.REACT_APP_API_URL
+    : null;
+  
+  // If environment variable is set and not empty, use it
+  if (envApiUrl && typeof envApiUrl === 'string' && envApiUrl.trim() !== '') {
+    const url = envApiUrl.trim();
+    // Ensure URL is complete (has protocol)
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    // Add https:// if missing
+    return `https://${url}`;
+  }
+  
+  // Check for runtime configuration from window (set in index.html)
+  if (typeof window !== 'undefined' && (window as any).ARCHAEOLOGY_API_URL) {
+    const windowApiUrl = (window as any).ARCHAEOLOGY_API_URL;
+    if (windowApiUrl && typeof windowApiUrl === 'string' && windowApiUrl.trim() !== '') {
+      const url = windowApiUrl.trim();
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url;
+      }
+      return `https://${url}`;
+    }
   }
   
   // Fallback: Use localhost for development, backend URL for production
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'http://localhost:4000';
   }
   
-  // Production fallback - use backend URL on Render
+  // Production fallback - ALWAYS use backend URL on Render
+  // This ensures the frontend always connects to the backend in production
   return 'https://archaeology-api.onrender.com';
 };
 
 const API_URL = getApiUrl();
 
 // Log API URL for debugging (always log in production to help troubleshoot)
-console.log('API URL configured:', API_URL);
+if (typeof window !== 'undefined') {
+  console.log('API URL configured:', API_URL);
+  console.log('Window location:', window.location.href);
+  console.log('Window hostname:', window.location.hostname);
+  console.log('Environment REACT_APP_API_URL:', (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_URL) || 'not set');
+  
+  // Validate API_URL is a full URL
+  if (!API_URL || API_URL.trim() === '') {
+    console.error('ERROR: API_URL is empty!');
+  } else if (!API_URL.startsWith('http://') && !API_URL.startsWith('https://')) {
+    console.error('ERROR: API_URL is not a full URL:', API_URL);
+  }
+}
 
 // Helper function to handle API errors
 const handleApiError = async (response: Response, defaultMessage: string): Promise<never> => {
@@ -86,14 +127,45 @@ export async function createCatalog(catalog: Catalog): Promise<Catalog> {
 
 export async function fetchArtifacts(): Promise<Artifact[]> {
   try {
-    const res = await fetch(`${API_URL}/api/artifacts`);
+    // Ensure API_URL is set and is a full URL
+    if (!API_URL || API_URL.trim() === '') {
+      console.error('API_URL is not set!');
+      throw new Error('API URL is not configured');
+    }
+    
+    // Ensure API_URL is a full URL (starts with http:// or https://)
+    const apiUrl = API_URL.startsWith('http://') || API_URL.startsWith('https://') 
+      ? API_URL 
+      : `https://${API_URL}`;
+    
+    const fullUrl = `${apiUrl}/api/artifacts`;
+    console.log('Fetching artifacts from:', fullUrl);
+    console.log('API_URL value:', API_URL);
+    
+    const res = await fetch(fullUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    console.log('Artifacts response status:', res.status, res.statusText);
+    console.log('Artifacts response headers:', Object.fromEntries(res.headers.entries()));
+    
     if (!res.ok) {
+      const errorText = await res.text();
+      console.error('Failed to fetch artifacts:', res.status, errorText);
+      console.error('Request URL was:', fullUrl);
       return handleApiError(res, 'Failed to load artifacts');
     }
-    return res.json();
+    const artifacts = await res.json();
+    console.log('Fetched artifacts:', artifacts.length);
+    return artifacts;
   } catch (error) {
     console.error('Fetch artifacts error:', error);
+    console.error('API_URL was:', API_URL);
     if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.error(`Cannot connect to backend API at ${API_URL}. Please check if the backend is running.`);
       throw new Error(`Cannot connect to backend API at ${API_URL}. Please check if the backend is running.`);
     }
     throw error;

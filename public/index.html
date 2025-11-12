@@ -12,6 +12,12 @@
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <title>ARCH-ID: Smart QR-Based Archaeological Artifact Digitization & Cataloging</title>
+    <!-- Runtime API URL configuration -->
+    <script>
+      // Set API URL at runtime (before React loads)
+      window.ARCHAEOLOGY_API_URL = 'https://archaeology-api.onrender.com';
+      console.log('Runtime API URL configured:', window.ARCHAEOLOGY_API_URL);
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

@@ -40,7 +40,8 @@ const AllArtifactsPage: React.FC = () => {
             setArtifacts(apiArtifacts);
           }
         }
-      } catch {
+      } catch (error) {
+        console.error('Error fetching artifacts:', error);
         const storedArtifacts = loadArtifacts();
         if (!cancelled) setArtifacts(storedArtifacts);
       } finally {

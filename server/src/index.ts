@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import db from './db.js';
 import { z } from 'zod';
+import { autoSeedDatabase } from './auto-seed.js';
 
 const app = express();
 
@@ -349,6 +350,15 @@ app.listen(port, '0.0.0.0', () => {
   // eslint-disable-next-line no-console
   console.log(`API server running on http://0.0.0.0:${port}`);
   console.log(`Accessible from your local network at http://192.168.4.29:${port}`);
+  
+  // Auto-seed database on startup (runs in background, doesn't block server start)
+  // This is especially useful for Render's free tier where database is ephemeral
+  // Run after server starts so server is ready to serve requests immediately
+  setImmediate(() => {
+    autoSeedDatabase().catch((error) => {
+      console.error('⚠️  Auto-seed failed (server will continue):', error.message);
+    });
+  });
 });
 
 

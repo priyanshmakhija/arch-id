@@ -1,44 +1,89 @@
 // Script to add real images to existing artifacts via API
-const API_URL = process.env.API_URL || 'http://localhost:4000';
+// Use node-fetch if available, otherwise use global fetch (Node.js 18+)
+let fetch;
+try {
+  fetch = require('node-fetch');
+} catch (e) {
+  // Node.js 18+ has fetch globally
+  if (typeof globalThis.fetch === 'undefined') {
+    console.error('❌ Error: fetch is not available. Please install node-fetch: npm install node-fetch@2');
+    process.exit(1);
+  }
+  fetch = globalThis.fetch;
+}
 
-// Fetch a real image from Wikimedia Commons (public domain archaeological images)
+const API_URL = process.env.API_URL || 'https://archaeology-api.onrender.com';
+
+// Generate a placeholder SVG image as base64
+function generatePlaceholderImage(artifactName, index) {
+  // Create a simple SVG placeholder with artifact name
+  const colors = [
+    '#4F46E5', '#7C3AED', '#DB2777', '#EA580C', '#CA8A04',
+    '#16A34A', '#0891B2', '#0284C7', '#BE185D', '#9F1239'
+  ];
+  const color = colors[index % colors.length];
+  
+  // Create SVG with artifact name
+  const svg = `
+    <svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100%" height="100%" fill="${color}" opacity="0.1"/>
+      <rect width="100%" height="100%" fill="url(#pattern)"/>
+      <defs>
+        <pattern id="pattern" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+          <circle cx="20" cy="20" r="2" fill="${color}" opacity="0.2"/>
+        </pattern>
+      </defs>
+      <text x="50%" y="45%" font-family="Arial, sans-serif" font-size="24" font-weight="bold" 
+            fill="${color}" text-anchor="middle" dominant-baseline="middle">
+        ${artifactName.split(' ').slice(0, 2).join(' ')}
+      </text>
+      <text x="50%" y="55%" font-family="Arial, sans-serif" font-size="16" 
+            fill="${color}" opacity="0.7" text-anchor="middle" dominant-baseline="middle">
+        Archaeological Artifact
+      </text>
+    </svg>
+  `.trim();
+  
+  // Convert SVG to base64
+  const base64 = Buffer.from(svg).toString('base64');
+  return `data:image/svg+xml;base64,${base64}`;
+}
+
+// Fetch a real image from a reliable source or use placeholder
 async function fetchRealImage(artifactName, index) {
-  // Using Wikimedia Commons direct URLs - these are public domain archaeological artifacts
-  const imageUrls = [
-    'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Neolithic_stone_axe.jpg/800px-Neolithic_stone_axe.jpg', // Neolithic axe
-    'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Roman_coin_head.jpg/800px-Roman_coin_head.jpg', // Roman coin
-    'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/AncientEgyptian_Scarab.jpg/800px-AncientEgyptian_Scarab.jpg', // Egyptian scarab
-    'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Cuneiform_tablet.jpg/800px-Cuneiform_tablet.jpg', // Cuneiform tablet
-    'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Greek_pottery.jpg/800px-Greek_pottery.jpg', // Greek pottery
-    'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Viking_brooch.jpg/800px-Viking_brooch.jpg', // Viking brooch
-    'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/Chinese_bronze_vessel.jpg/800px-Chinese_bronze_vessel.jpg', // Chinese bronze
-    'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Maya_ceramic.jpg/800px-Maya_ceramic.jpg', // Maya ceramic
-    'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/Medieval_manuscript.jpg/800px-Medieval_manuscript.jpg', // Medieval manuscript
-    'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Indus_seal.jpg/800px-Indus_seal.jpg', // Indus seal
+  // Try using placeholder.com first (reliable and fast)
+  const placeholderUrls = [
+    `https://via.placeholder.com/800x600/4F46E5/FFFFFF?text=${encodeURIComponent(artifactName.split(' ').slice(0, 2).join('+'))}`,
+    `https://picsum.photos/800/600?random=${index + 1}`,
   ];
   
-  const imageUrl = imageUrls[index] || imageUrls[0];
-  
+  // Try placeholder.com first
   try {
-    // Fetch the image
-    const response = await fetch(imageUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch image: ${response.statusText}`);
+    // Create a timeout promise for fetch
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Request timeout')), 10000);
+    });
+    
+    const fetchPromise = fetch(placeholderUrls[0], {
+      redirect: 'follow',
+    });
+    
+    const response = await Promise.race([fetchPromise, timeoutPromise]);
+    
+    if (response && response.ok) {
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const base64 = buffer.toString('base64');
+      const contentType = response.headers.get('content-type') || 'image/png';
+      return `data:${contentType};base64,${base64}`;
     }
-    
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const base64 = buffer.toString('base64');
-    
-    // Determine MIME type from response
-    const contentType = response.headers.get('content-type') || 'image/jpeg';
-    
-    return `data:${contentType};base64,${base64}`;
   } catch (error) {
-    console.error(`  ⚠️  Warning: Could not fetch image for ${artifactName}: ${error.message}`);
-    // Fallback to placeholder if fetch fails
-    return null;
+    console.log(`  ⚠️  Could not fetch from placeholder.com: ${error.message}`);
   }
+  
+  // Fallback to generated SVG placeholder (always works)
+  console.log(`  📝 Using SVG placeholder for: ${artifactName}`);
+  return generatePlaceholderImage(artifactName, index);
 }
 
 async function addImagesToArtifacts() {
@@ -95,6 +140,17 @@ async function addImagesToArtifacts() {
         images2D: [realImage],
         lastModified: new Date().toISOString()
       };
+      
+      // Include dimension fields if they exist
+      if (artifact.length) {
+        updatedArtifact.length = artifact.length;
+      }
+      if (artifact.heightDepth) {
+        updatedArtifact.heightDepth = artifact.heightDepth;
+      }
+      if (artifact.width) {
+        updatedArtifact.width = artifact.width;
+      }
       
       // Only include optional fields if they exist
       if (artifact.subCatalogId) {

@@ -4,10 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import { loginUser } from '../utils/api';
 
 const credentialHints = [
-  { username: 'admin', password: 'admin', description: 'Full management access' },
-  { username: 'archaeologist', password: 'archaeologist', description: 'Add/edit artifacts' },
-  { username: 'researcher', password: 'researcher', description: 'Read-only access' },
-  { username: 'user', password: 'user', description: 'Basic browsing' },
+  { username: 'admin', description: 'Full management access' },
+  { username: 'archaeologist', description: 'Add/edit artifacts' },
+  { username: 'researcher', description: 'Read-only access' },
+  { username: 'user', description: 'Basic browsing' },
 ];
 
 const LoginPage: React.FC = () => {
@@ -40,7 +40,7 @@ const LoginPage: React.FC = () => {
       navigate(from, { replace: true });
     } catch (err) {
       console.error(err);
-      setError('Invalid username or password. Try one of the sample accounts below.');
+      setError('Invalid username or password. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -51,7 +51,7 @@ const LoginPage: React.FC = () => {
       <div className="bg-white shadow rounded-xl p-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">Sign In</h1>
         <p className="text-gray-600 text-center mb-8">
-          Use one of the prototype accounts below. Role-based permissions are determined by the account you choose.
+          Use one of the accounts below. Role-based permissions are determined by the account you choose.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -63,7 +63,7 @@ const LoginPage: React.FC = () => {
               id="username"
               type="text"
               className="input-field"
-              placeholder="e.g., admin"
+              placeholder="Enter username"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
               autoComplete="username"
@@ -78,7 +78,7 @@ const LoginPage: React.FC = () => {
               id="password"
               type="password"
               className="input-field"
-              placeholder="e.g., admin"
+              placeholder="Enter password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               autoComplete="current-password"
@@ -94,13 +94,12 @@ const LoginPage: React.FC = () => {
 
         <div className="mt-8">
           <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">
-            Sample Accounts
+            Available Accounts
           </h2>
           <div className="grid md:grid-cols-2 gap-4">
             {credentialHints.map((credential) => (
               <div key={credential.username} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
                 <p className="text-sm font-semibold text-gray-900 capitalize">{credential.username}</p>
-                <p className="text-xs text-gray-500">Password: {credential.password}</p>
                 <p className="text-xs text-gray-600 mt-2">{credential.description}</p>
               </div>
             ))}

@@ -48,10 +48,10 @@ type AuthUser = {
 };
 
 const users: Record<string, AuthUser> = {
-  admin: { username: 'admin', password: 'admin', role: 'admin', name: 'Admin' },
-  archaeologist: { username: 'archaeologist', password: 'archaeologist', role: 'archaeologist', name: 'Archaeologist' },
-  researcher: { username: 'researcher', password: 'researcher', role: 'researcher', name: 'Researcher' },
-  user: { username: 'user', password: 'user', role: 'user', name: 'User' },
+  admin: { username: 'admin', password: 'mtsd_fanatics@2025', role: 'admin', name: 'Admin' },
+  archaeologist: { username: 'archaeologist', password: 'mtsd_fanatics@2025', role: 'archaeologist', name: 'Archaeologist' },
+  researcher: { username: 'researcher', password: 'mtsd_fanatics@2025', role: 'researcher', name: 'Researcher' },
+  user: { username: 'user', password: 'mtsd_fanatics@2025', role: 'user', name: 'User' },
 };
 
 const getRequestRole = (req: express.Request): UserRole | null => {

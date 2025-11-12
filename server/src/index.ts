@@ -7,9 +7,18 @@ const app = express();
 
 // CORS configuration - allow frontend origin
 const corsOrigin = process.env.CORS_ORIGIN || '*';
+const allowedOrigins = corsOrigin === '*' 
+  ? true 
+  : corsOrigin.split(',').map(origin => origin.trim()).filter(origin => origin);
+
+console.log('CORS Origin configured:', corsOrigin);
+console.log('Allowed origins:', allowedOrigins);
+
 app.use(cors({ 
-  origin: corsOrigin === '*' ? true : corsOrigin,
-  credentials: true 
+  origin: allowedOrigins,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role']
 }));
 app.use(express.json({ limit: '5mb' }));
 

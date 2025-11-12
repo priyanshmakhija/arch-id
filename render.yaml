@@ -12,10 +12,7 @@ services:
       - key: PORT
         value: 4000
       - key: CORS_ORIGIN
-        fromService:
-          type: web
-          name: archaeology-frontend
-          property: host
+        value: https://archaeology-frontend.onrender.com
 
   # Frontend Static Site
   - type: web

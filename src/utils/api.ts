@@ -47,7 +47,14 @@ const getApiUrl = (): string => {
   return 'https://archaeology-api.onrender.com';
 };
 
-const API_URL = getApiUrl();
+// Get API URL and remove trailing slash to prevent double slashes
+const getCleanApiUrl = (): string => {
+  const url = getApiUrl();
+  // Remove trailing slash if present
+  return url.replace(/\/+$/, '');
+};
+
+const API_URL = getCleanApiUrl();
 
 // Log API URL for debugging (always log in production to help troubleshoot)
 if (typeof window !== 'undefined') {
@@ -133,12 +140,8 @@ export async function fetchArtifacts(): Promise<Artifact[]> {
       throw new Error('API URL is not configured');
     }
     
-    // Ensure API_URL is a full URL (starts with http:// or https://)
-    const apiUrl = API_URL.startsWith('http://') || API_URL.startsWith('https://') 
-      ? API_URL 
-      : `https://${API_URL}`;
-    
-    const fullUrl = `${apiUrl}/api/artifacts`;
+    // API_URL is already cleaned (no trailing slash), so we can safely append /api/artifacts
+    const fullUrl = `${API_URL}/api/artifacts`;
     console.log('Fetching artifacts from:', fullUrl);
     console.log('API_URL value:', API_URL);
     
@@ -150,7 +153,6 @@ export async function fetchArtifacts(): Promise<Artifact[]> {
     });
     
     console.log('Artifacts response status:', res.status, res.statusText);
-    console.log('Artifacts response headers:', Object.fromEntries(res.headers.entries()));
     
     if (!res.ok) {
       const errorText = await res.text();

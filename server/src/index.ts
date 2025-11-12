@@ -13,6 +13,21 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '5mb' }));
 
+// Root route - API information
+app.get('/', (_req, res) => {
+  res.json({
+    message: 'Archaeology Catalog API',
+    version: '1.0.0',
+    endpoints: {
+      login: 'POST /api/login',
+      catalogs: 'GET /api/catalogs',
+      artifacts: 'GET /api/artifacts',
+      stats: 'GET /api/stats'
+    },
+    status: 'running'
+  });
+});
+
 type UserRole = 'admin' | 'archaeologist' | 'researcher' | 'user';
 const allowedRoles: UserRole[] = ['admin', 'archaeologist', 'researcher', 'user'];
 

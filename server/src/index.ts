@@ -4,7 +4,13 @@ import db from './db.js';
 import { z } from 'zod';
 
 const app = express();
-app.use(cors({ origin: true }));
+
+// CORS configuration - allow frontend origin
+const corsOrigin = process.env.CORS_ORIGIN || '*';
+app.use(cors({ 
+  origin: corsOrigin === '*' ? true : corsOrigin,
+  credentials: true 
+}));
 app.use(express.json({ limit: '5mb' }));
 
 type UserRole = 'admin' | 'archaeologist' | 'researcher' | 'user';

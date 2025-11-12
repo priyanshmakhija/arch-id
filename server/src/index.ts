@@ -210,7 +210,7 @@ app.post('/api/artifacts', (req, res) => {
         length, heightDepth, width,
         locationFound, dateFound, images2D, image3D, video,
         creationDate, lastModified
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     
     stmt.run(

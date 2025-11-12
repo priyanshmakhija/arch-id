@@ -1,0 +1,33 @@
+services:
+  # Backend API Service
+  - type: web
+    name: archaeology-api
+    env: node
+    plan: free
+    buildCommand: cd server && npm install && npm run build
+    startCommand: cd server && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: CORS_ORIGIN
+        fromService:
+          type: web
+          name: archaeology-frontend
+          property: host
+
+  # Frontend Static Site
+  - type: web
+    name: archaeology-frontend
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./build
+    envVars:
+      - key: REACT_APP_API_URL
+        fromService:
+          type: web
+          name: archaeology-api
+          property: host
+        format: https://${host}
+

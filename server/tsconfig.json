@@ -2,15 +2,19 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "ES2020",
-    "moduleResolution": "Bundler",
+    "moduleResolution": "node",
     "outDir": "dist",
     "rootDir": "src",
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
-    "strict": true,
-    "resolveJsonModule": true
+    "strict": false,
+    "resolveJsonModule": true,
+    "types": ["node"],
+    "lib": ["ES2020"]
   },
-  "include": ["src"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }
 
 

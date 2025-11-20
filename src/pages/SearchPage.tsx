@@ -90,7 +90,7 @@ const SearchPage: React.FC = () => {
         barcode = url.searchParams.get('barcode');
       } else {
         // Not a URL, try to match as relative path or barcode
-        const artifactMatch = decodedText.match(/\/artifact\/([^?\/]+)/);
+        const artifactMatch = decodedText.match(/\/artifact\/([^?/]+)/);
         if (artifactMatch) {
           artifactId = artifactMatch[1];
           // Also check for barcode in query string

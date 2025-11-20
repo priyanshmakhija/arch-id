@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Save, QrCode } from 'lucide-react';
+import { Save } from 'lucide-react';
 import { Artifact, Catalog } from '../types';
 import { loadCatalogs, loadArtifacts, saveArtifacts, saveCatalogs } from '../utils/storageUtils';
 import { createArtifact } from '../utils/api';
@@ -40,7 +40,7 @@ const AddArtifactPage: React.FC = () => {
       const newBarcode = generateBarcodeId('artifact', artifacts.length + 1);
       setFormData(prev => ({ ...prev, barcode: newBarcode }));
     }
-  }, []);
+  }, [formData.barcode]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -151,8 +151,6 @@ const AddArtifactPage: React.FC = () => {
       setIsSubmitting(false);
     }
   };
-
-  const selectedCatalog = catalogs.find(c => c.id === formData.catalogId);
 
   return (
     <div className="space-y-8 pb-24">

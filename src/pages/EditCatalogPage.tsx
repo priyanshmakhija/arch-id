@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Save, ArrowLeft } from 'lucide-react';
-import { Catalog } from '../types';
 import { fetchCatalog, updateCatalog } from '../utils/api';
 import { loadCatalogs, saveCatalogs } from '../utils/storageUtils';
 

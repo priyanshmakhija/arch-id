@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, QrCode } from 'lucide-react';
-import { Artifact, Catalog } from '../types';
+import { Catalog } from '../types';
 import { loadCatalogs, loadArtifacts, saveArtifacts } from '../utils/storageUtils';
 import { fetchArtifact, fetchCatalogs, updateArtifact } from '../utils/api';
 import MediaUpload from '../components/MediaUpload';

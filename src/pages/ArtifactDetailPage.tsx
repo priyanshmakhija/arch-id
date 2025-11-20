@@ -247,7 +247,7 @@ const ArtifactDetailPage: React.FC = () => {
                             <div key={index} className="relative bg-gray-100 rounded-lg overflow-hidden aspect-square">
                               <img
                                 src={image}
-                                alt={`${artifact.name} - Image ${index + 1}`}
+                                alt={`${artifact.name} ${index + 1}`}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
                                   e.currentTarget.style.display = 'none';

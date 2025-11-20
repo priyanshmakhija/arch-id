@@ -14,13 +14,18 @@ services:
       - key: CORS_ORIGIN
         value: https://archaeology-frontend.onrender.com
 
-  # Frontend Static Site
+  # Frontend Web Service
   - type: web
     name: archaeology-frontend
-    env: static
+    env: node
+    plan: free
     buildCommand: npm install && npm run build
-    staticPublishPath: ./build
+    startCommand: node server-static.js
     envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
       - key: REACT_APP_API_URL
         value: https://archaeology-api.onrender.com
 

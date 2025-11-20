@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Search, QrCode, MapPin, Calendar, Filter } from 'lucide-react';
 import { Artifact, Catalog } from '../types';
 import { loadArtifacts, loadCatalogs } from '../utils/storageUtils';
 import { fetchArtifacts, fetchCatalogs } from '../utils/api';
+import QRCodeScanner from '../components/QRCodeScanner';
 
 const SearchPage: React.FC = () => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCatalog, setSelectedCatalog] = useState('');
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [catalogs, setCatalogs] = useState<Catalog[]>([]);
   const [filteredArtifacts, setFilteredArtifacts] = useState<Artifact[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showScanner, setShowScanner] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,6 +55,117 @@ const SearchPage: React.FC = () => {
 
     setFilteredArtifacts(filtered);
   }, [searchTerm, selectedCatalog, artifacts]);
+
+  const handleScanSuccess = async (decodedText: string) => {
+    try {
+      // Parse the QR code content
+      // QR codes contain URLs like: /artifact/{id}?barcode={barcode}
+      // Or just the barcode itself
+      
+      let artifactId: string | null = null;
+      let barcode: string | null = null;
+
+      // Try to parse as URL (absolute or relative)
+      let url: URL | null = null;
+      try {
+        // Try as absolute URL first
+        url = new URL(decodedText);
+      } catch {
+        // If that fails, try as relative URL by prepending current origin
+        try {
+          url = new URL(decodedText, window.location.origin);
+        } catch {
+          // Not a URL at all
+        }
+      }
+
+      if (url) {
+        // Extract artifact ID from path
+        const pathParts = url.pathname.split('/').filter(p => p);
+        const artifactIndex = pathParts.indexOf('artifact');
+        if (artifactIndex !== -1 && pathParts[artifactIndex + 1]) {
+          artifactId = pathParts[artifactIndex + 1];
+        }
+        // Extract barcode from query params
+        barcode = url.searchParams.get('barcode');
+      } else {
+        // Not a URL, try to match as relative path or barcode
+        const artifactMatch = decodedText.match(/\/artifact\/([^?\/]+)/);
+        if (artifactMatch) {
+          artifactId = artifactMatch[1];
+          // Also check for barcode in query string
+          const barcodeMatch = decodedText.match(/[?&]barcode=([^&]+)/);
+          if (barcodeMatch) {
+            barcode = barcodeMatch[1];
+          }
+        } else {
+          // Check if it's just a barcode
+          if (decodedText.length > 0) {
+            // Check if decodedText matches a barcode pattern
+            const foundArtifact = artifacts.find(a => a.barcode === decodedText);
+            if (foundArtifact) {
+              artifactId = foundArtifact.id;
+            } else {
+              barcode = decodedText;
+            }
+          }
+        }
+      }
+
+      // If we have an artifact ID, navigate directly
+      if (artifactId && artifactId !== 'preview-') {
+        // Remove 'preview-' prefix if present
+        const cleanId = artifactId.replace(/^preview-/, '');
+        navigate(`/artifact/${cleanId}`);
+        setShowScanner(false);
+        return;
+      }
+
+      // If we have a barcode, find the artifact
+      if (barcode) {
+        const foundArtifact = artifacts.find(a => a.barcode === barcode);
+        if (foundArtifact) {
+          navigate(`/artifact/${foundArtifact.id}`);
+          setShowScanner(false);
+          return;
+        }
+      }
+
+      // If we couldn't find the artifact, try searching in all artifacts
+      if (barcode || artifactId) {
+        try {
+          const allArtifacts = await fetchArtifacts();
+          const found = allArtifacts.find(
+            a => a.id === artifactId || a.barcode === barcode || a.barcode === decodedText
+          );
+          if (found) {
+            navigate(`/artifact/${found.id}`);
+            setShowScanner(false);
+            return;
+          }
+        } catch {
+          // Fallback to local storage
+          const localArtifacts = loadArtifacts();
+          const found = localArtifacts.find(
+            a => a.id === artifactId || a.barcode === barcode || a.barcode === decodedText
+          );
+          if (found) {
+            navigate(`/artifact/${found.id}`);
+            setShowScanner(false);
+            return;
+          }
+        }
+      }
+
+      // If we still couldn't find it, show an error
+      alert(`Artifact not found for scanned code: ${decodedText}`);
+      setShowScanner(false);
+    } catch (error) {
+      console.error('Error processing scanned QR code:', error);
+      alert('Error processing scanned QR code. Please try again.');
+      setShowScanner(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -119,7 +233,26 @@ const SearchPage: React.FC = () => {
             </div>
           </div>
         </div>
+        
+        {/* QR Code Scanner Button */}
+        <div className="mt-4">
+          <button
+            onClick={() => setShowScanner(true)}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <QrCode className="h-5 w-5 mr-2" />
+            Scan QR Code
+          </button>
+        </div>
       </div>
+
+      {/* QR Code Scanner Modal */}
+      {showScanner && (
+        <QRCodeScanner
+          onScanSuccess={handleScanSuccess}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
 
       {/* Results */}
       <div>

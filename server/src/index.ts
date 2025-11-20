@@ -179,8 +179,22 @@ app.get('/api/artifacts/:id', (req, res) => {
 
 // Endpoint to find artifact by barcode (for QR code scanning)
 app.get('/api/artifacts/by-barcode/:barcode', (req, res) => {
-  const row = db.prepare('SELECT * FROM artifacts WHERE barcode = ?').get(req.params.barcode) as any;
-  if (!row) return res.status(404).json({ error: 'Not found' });
+  // Decode the barcode parameter (it comes URL-encoded)
+  const barcode = decodeURIComponent(req.params.barcode).trim();
+  const row = db.prepare('SELECT * FROM artifacts WHERE barcode = ?').get(barcode) as any;
+  if (!row) {
+    // Try case-insensitive search as fallback
+    const rows = db.prepare('SELECT * FROM artifacts WHERE UPPER(barcode) = UPPER(?)').all(barcode) as any[];
+    if (rows.length > 0) {
+      const artifact = { 
+        ...rows[0], 
+        images2D: JSON.parse(rows[0].images2D ?? '[]'),
+        comments: [],
+      };
+      return res.json(artifact);
+    }
+    return res.status(404).json({ error: 'Not found' });
+  }
   const artifact = { 
     ...row, 
     images2D: JSON.parse(row.images2D ?? '[]'),

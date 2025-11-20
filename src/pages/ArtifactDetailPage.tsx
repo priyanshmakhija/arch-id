@@ -84,22 +84,41 @@ const ArtifactDetailPage: React.FC = () => {
           const foundCatalog = catalogs.find(c => c.id === apiArtifact.catalogId);
           setCatalog(foundCatalog || null);
         } catch (_err) {
-          // If not found by ID, try to find by barcode or search all artifacts
+          // If not found by ID, try to find by barcode
           const barcodeToSearch = barcodeFromQuery || id;
           
+          // First, try the barcode endpoint if we have a barcode
+          if (barcodeToSearch && barcodeToSearch !== id) {
+            try {
+              const foundByBarcode = await fetchArtifactByBarcode(barcodeToSearch.trim());
+              if (cancelled) return;
+              setArtifact(foundByBarcode);
+              const catalogs = loadCatalogs();
+              const foundCatalog = catalogs.find(c => c.id === foundByBarcode.catalogId) || null;
+              setCatalog(foundCatalog);
+              setLoading(false);
+              return;
+            } catch {
+              // Continue to fallback methods
+            }
+          }
+          
+          // Fallback: search all artifacts
           try {
             const artifacts = await fetchArtifacts();
             let foundArtifact = artifacts.find(a => a.id === id) || null;
             
             // If not found by ID, try by barcode
             if (!foundArtifact && barcodeToSearch) {
-              foundArtifact = artifacts.find(a => a.barcode === barcodeToSearch) || null;
+              foundArtifact = artifacts.find(a => 
+                a.barcode === barcodeToSearch || a.barcode.trim() === barcodeToSearch.trim()
+              ) || null;
             }
             
             if (!foundArtifact) {
               const localArtifacts = loadArtifacts();
               foundArtifact = localArtifacts.find(
-                a => a.id === id || (barcodeToSearch && a.barcode === barcodeToSearch)
+                a => a.id === id || (barcodeToSearch && (a.barcode === barcodeToSearch || a.barcode.trim() === barcodeToSearch.trim()))
               ) || null;
             }
             
@@ -114,7 +133,7 @@ const ArtifactDetailPage: React.FC = () => {
             const artifacts = loadArtifacts();
             const barcodeToSearch = barcodeFromQuery || id;
             const foundArtifact = artifacts.find(
-              a => a.id === id || (barcodeToSearch && a.barcode === barcodeToSearch)
+              a => a.id === id || (barcodeToSearch && (a.barcode === barcodeToSearch || a.barcode.trim() === barcodeToSearch.trim()))
             ) || null;
             if (cancelled) return;
             setArtifact(foundArtifact);

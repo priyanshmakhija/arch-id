@@ -175,14 +175,27 @@ export async function fetchArtifacts(): Promise<Artifact[]> {
 }
 
 export async function fetchArtifact(id: string): Promise<Artifact> {
-  const res = await fetch(`${API_URL}/api/artifacts/${id}`);
-  if (!res.ok) throw new Error('Failed to load artifact');
+  // Ensure ID is properly encoded (remove any query parameters that might have been included)
+  const cleanId = id.split('?')[0].trim();
+  const res = await fetch(`${API_URL}/api/artifacts/${encodeURIComponent(cleanId)}`);
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error('Artifact not found');
+    }
+    throw new Error('Failed to load artifact');
+  }
   return res.json();
 }
 
 export async function fetchArtifactByBarcode(barcode: string): Promise<Artifact> {
-  const res = await fetch(`${API_URL}/api/artifacts/by-barcode/${encodeURIComponent(barcode)}`);
-  if (!res.ok) throw new Error('Failed to load artifact by barcode');
+  const cleanBarcode = barcode.trim();
+  const res = await fetch(`${API_URL}/api/artifacts/by-barcode/${encodeURIComponent(cleanBarcode)}`);
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error('Artifact not found by barcode');
+    }
+    throw new Error('Failed to load artifact by barcode');
+  }
   return res.json();
 }
 

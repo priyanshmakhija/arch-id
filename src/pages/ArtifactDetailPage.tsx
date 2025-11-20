@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Edit, QrCode, MapPin, Calendar, MessageSquare, Trash2, Ruler, ShieldAlert } from 'lucide-react';
 import { Artifact, Catalog } from '../types';
 import { loadArtifacts, loadCatalogs, saveArtifacts } from '../utils/storageUtils';
@@ -9,6 +9,8 @@ import { useAuth, hasRole } from '../context/AuthContext';
 const ArtifactDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const barcodeFromQuery = searchParams.get('barcode');
   const { user } = useAuth();
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
@@ -30,18 +32,23 @@ const ArtifactDetailPage: React.FC = () => {
         setCatalog(foundCatalog || null);
       } catch (_err) {
         // If not found by ID, try to find by barcode (for QR code support)
+        // Use barcode from query string if available, otherwise try using id as barcode
+        const barcodeToSearch = barcodeFromQuery || id;
+        
         try {
           const artifacts = await fetchArtifacts();
           let foundArtifact = artifacts.find(a => a.id === id) || null;
           
-          // If not found by ID, try by barcode
-          if (!foundArtifact) {
-            foundArtifact = artifacts.find(a => a.barcode === id) || null;
+          // If not found by ID, try by barcode from query string or use id as barcode
+          if (!foundArtifact && barcodeToSearch) {
+            foundArtifact = artifacts.find(a => a.barcode === barcodeToSearch) || null;
           }
           
           if (!foundArtifact) {
             const localArtifacts = loadArtifacts();
-            foundArtifact = localArtifacts.find(a => a.id === id || a.barcode === id) || null;
+            foundArtifact = localArtifacts.find(
+              a => a.id === id || (barcodeToSearch && a.barcode === barcodeToSearch)
+            ) || null;
           }
           
           if (cancelled) return;
@@ -53,7 +60,10 @@ const ArtifactDetailPage: React.FC = () => {
           }
         } catch {
           const artifacts = loadArtifacts();
-          const foundArtifact = artifacts.find(a => a.id === id || a.barcode === id) || null;
+          const barcodeToSearch = barcodeFromQuery || id;
+          const foundArtifact = artifacts.find(
+            a => a.id === id || (barcodeToSearch && a.barcode === barcodeToSearch)
+          ) || null;
           if (cancelled) return;
           setArtifact(foundArtifact);
           if (foundArtifact) {
@@ -67,7 +77,7 @@ const ArtifactDetailPage: React.FC = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, barcodeFromQuery]);
 
   if (loading) {
     return (

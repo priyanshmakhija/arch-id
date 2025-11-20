@@ -180,6 +180,12 @@ export async function fetchArtifact(id: string): Promise<Artifact> {
   return res.json();
 }
 
+export async function fetchArtifactByBarcode(barcode: string): Promise<Artifact> {
+  const res = await fetch(`${API_URL}/api/artifacts/by-barcode/${encodeURIComponent(barcode)}`);
+  if (!res.ok) throw new Error('Failed to load artifact by barcode');
+  return res.json();
+}
+
 export async function loginUser(username: string, password: string): Promise<AuthUser> {
   try {
     const res = await fetch(`${API_URL}/api/login`, {

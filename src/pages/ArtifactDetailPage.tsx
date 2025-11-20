@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Edit, QrCode, MapPin, Calendar, MessageSquare, Trash2, Ruler, ShieldAlert } from 'lucide-react';
 import { Artifact, Catalog } from '../types';
 import { loadArtifacts, loadCatalogs, saveArtifacts } from '../utils/storageUtils';
-import { fetchArtifact, fetchArtifacts, deleteArtifact } from '../utils/api';
+import { fetchArtifact, fetchArtifacts, fetchArtifactByBarcode, deleteArtifact } from '../utils/api';
 import { useAuth, hasRole } from '../context/AuthContext';
 
 const ArtifactDetailPage: React.FC = () => {
@@ -23,53 +23,98 @@ const ArtifactDetailPage: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        // Try to fetch by ID first
-        const apiArtifact = await fetchArtifact(id);
-        if (cancelled) return;
-        setArtifact(apiArtifact);
-        const catalogs = loadCatalogs();
-        const foundCatalog = catalogs.find(c => c.id === apiArtifact.catalogId);
-        setCatalog(foundCatalog || null);
-      } catch (_err) {
-        // If not found by ID, try to find by barcode (for QR code support)
-        // Use barcode from query string if available, otherwise try using id as barcode
-        const barcodeToSearch = barcodeFromQuery || id;
-        
-        try {
-          const artifacts = await fetchArtifacts();
-          let foundArtifact = artifacts.find(a => a.id === id) || null;
-          
-          // If not found by ID, try by barcode from query string or use id as barcode
-          if (!foundArtifact && barcodeToSearch) {
-            foundArtifact = artifacts.find(a => a.barcode === barcodeToSearch) || null;
+        // If we have a barcode in query string, prioritize searching by barcode first
+        // This handles cases where QR codes have outdated IDs but correct barcodes
+        if (barcodeFromQuery) {
+          try {
+            // Try to fetch directly by barcode using the new endpoint
+            const foundByBarcode = await fetchArtifactByBarcode(barcodeFromQuery);
+            if (cancelled) return;
+            setArtifact(foundByBarcode);
+            const catalogs = loadCatalogs();
+            const foundCatalog = catalogs.find(c => c.id === foundByBarcode.catalogId) || null;
+            setCatalog(foundCatalog);
+            setLoading(false);
+            return;
+          } catch {
+            // If API endpoint fails, try searching all artifacts
+            try {
+              const allArtifacts = await fetchArtifacts();
+              const foundByBarcode = allArtifacts.find(a => a.barcode === barcodeFromQuery);
+              if (foundByBarcode) {
+                if (cancelled) return;
+                setArtifact(foundByBarcode);
+                const catalogs = loadCatalogs();
+                const foundCatalog = catalogs.find(c => c.id === foundByBarcode.catalogId) || null;
+                setCatalog(foundCatalog);
+                setLoading(false);
+                return;
+              }
+            } catch {
+              // Fallback to local storage
+              const localArtifacts = loadArtifacts();
+              const foundByBarcode = localArtifacts.find(a => a.barcode === barcodeFromQuery);
+              if (foundByBarcode) {
+                if (cancelled) return;
+                setArtifact(foundByBarcode);
+                const catalogs = loadCatalogs();
+                const foundCatalog = catalogs.find(c => c.id === foundByBarcode.catalogId) || null;
+                setCatalog(foundCatalog);
+                setLoading(false);
+                return;
+              }
+            }
           }
+        }
+
+        // Try to fetch by ID first
+        try {
+          const apiArtifact = await fetchArtifact(id);
+          if (cancelled) return;
+          setArtifact(apiArtifact);
+          const catalogs = loadCatalogs();
+          const foundCatalog = catalogs.find(c => c.id === apiArtifact.catalogId);
+          setCatalog(foundCatalog || null);
+        } catch (_err) {
+          // If not found by ID, try to find by barcode or search all artifacts
+          const barcodeToSearch = barcodeFromQuery || id;
           
-          if (!foundArtifact) {
-            const localArtifacts = loadArtifacts();
-            foundArtifact = localArtifacts.find(
+          try {
+            const artifacts = await fetchArtifacts();
+            let foundArtifact = artifacts.find(a => a.id === id) || null;
+            
+            // If not found by ID, try by barcode
+            if (!foundArtifact && barcodeToSearch) {
+              foundArtifact = artifacts.find(a => a.barcode === barcodeToSearch) || null;
+            }
+            
+            if (!foundArtifact) {
+              const localArtifacts = loadArtifacts();
+              foundArtifact = localArtifacts.find(
+                a => a.id === id || (barcodeToSearch && a.barcode === barcodeToSearch)
+              ) || null;
+            }
+            
+            if (cancelled) return;
+            setArtifact(foundArtifact);
+            if (foundArtifact) {
+              const catalogs = loadCatalogs();
+              const foundCatalog = catalogs.find(c => c.id === foundArtifact?.catalogId) || null;
+              setCatalog(foundCatalog);
+            }
+          } catch {
+            const artifacts = loadArtifacts();
+            const barcodeToSearch = barcodeFromQuery || id;
+            const foundArtifact = artifacts.find(
               a => a.id === id || (barcodeToSearch && a.barcode === barcodeToSearch)
             ) || null;
-          }
-          
-          if (cancelled) return;
-          setArtifact(foundArtifact);
-          if (foundArtifact) {
-            const catalogs = loadCatalogs();
-            const foundCatalog = catalogs.find(c => c.id === foundArtifact?.catalogId) || null;
-            setCatalog(foundCatalog);
-          }
-        } catch {
-          const artifacts = loadArtifacts();
-          const barcodeToSearch = barcodeFromQuery || id;
-          const foundArtifact = artifacts.find(
-            a => a.id === id || (barcodeToSearch && a.barcode === barcodeToSearch)
-          ) || null;
-          if (cancelled) return;
-          setArtifact(foundArtifact);
-          if (foundArtifact) {
-            const catalogs = loadCatalogs();
-            const foundCatalog = catalogs.find(c => c.id === foundArtifact.catalogId) || null;
-            setCatalog(foundCatalog);
+            if (cancelled) return;
+            setArtifact(foundArtifact);
+            if (foundArtifact) {
+              const catalogs = loadCatalogs();
+              const foundCatalog = catalogs.find(c => c.id === foundArtifact.catalogId) || null;
+              setCatalog(foundCatalog);
+            }
           }
         }
       } finally {

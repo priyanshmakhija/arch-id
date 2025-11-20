@@ -160,12 +160,31 @@ app.get('/api/artifacts', (_req, res) => {
 });
 
 app.get('/api/artifacts/:id', (req, res) => {
-  const row = db.prepare('SELECT * FROM artifacts WHERE id = ?').get(req.params.id) as any;
+  // Try to find by ID first
+  let row = db.prepare('SELECT * FROM artifacts WHERE id = ?').get(req.params.id) as any;
+  
+  // If not found by ID, try to find by barcode (for QR code support)
+  if (!row) {
+    row = db.prepare('SELECT * FROM artifacts WHERE barcode = ?').get(req.params.id) as any;
+  }
+  
   if (!row) return res.status(404).json({ error: 'Not found' });
   const artifact = { 
     ...row, 
     images2D: JSON.parse(row.images2D ?? '[]'),
     comments: [], // Comments are stored separately if needed, default to empty array
+  };
+  res.json(artifact);
+});
+
+// Endpoint to find artifact by barcode (for QR code scanning)
+app.get('/api/artifacts/by-barcode/:barcode', (req, res) => {
+  const row = db.prepare('SELECT * FROM artifacts WHERE barcode = ?').get(req.params.barcode) as any;
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  const artifact = { 
+    ...row, 
+    images2D: JSON.parse(row.images2D ?? '[]'),
+    comments: [],
   };
   res.json(artifact);
 });

@@ -112,11 +112,15 @@ const SearchPage: React.FC = () => {
         }
       }
 
-      // If we have an artifact ID, navigate directly
+      // If we have an artifact ID, navigate directly (include barcode in URL if available)
       if (artifactId && artifactId !== 'preview-') {
         // Remove 'preview-' prefix if present
         const cleanId = artifactId.replace(/^preview-/, '');
-        navigate(`/artifact/${cleanId}`);
+        // Include barcode in query string if we have it (for QR code support)
+        const url = barcode 
+          ? `/artifact/${cleanId}?barcode=${encodeURIComponent(barcode)}`
+          : `/artifact/${cleanId}`;
+        navigate(url);
         setShowScanner(false);
         return;
       }
@@ -125,7 +129,8 @@ const SearchPage: React.FC = () => {
       if (barcode) {
         const foundArtifact = artifacts.find(a => a.barcode === barcode);
         if (foundArtifact) {
-          navigate(`/artifact/${foundArtifact.id}`);
+          // Include barcode in URL for redundancy
+          navigate(`/artifact/${foundArtifact.id}?barcode=${encodeURIComponent(barcode)}`);
           setShowScanner(false);
           return;
         }
@@ -139,7 +144,11 @@ const SearchPage: React.FC = () => {
             a => a.id === artifactId || a.barcode === barcode || a.barcode === decodedText
           );
           if (found) {
-            navigate(`/artifact/${found.id}`);
+            // Include barcode in URL if we have it
+            const url = barcode 
+              ? `/artifact/${found.id}?barcode=${encodeURIComponent(barcode)}`
+              : `/artifact/${found.id}`;
+            navigate(url);
             setShowScanner(false);
             return;
           }
@@ -150,7 +159,11 @@ const SearchPage: React.FC = () => {
             a => a.id === artifactId || a.barcode === barcode || a.barcode === decodedText
           );
           if (found) {
-            navigate(`/artifact/${found.id}`);
+            // Include barcode in URL if we have it
+            const url = barcode 
+              ? `/artifact/${found.id}?barcode=${encodeURIComponent(barcode)}`
+              : `/artifact/${found.id}`;
+            navigate(url);
             setShowScanner(false);
             return;
           }

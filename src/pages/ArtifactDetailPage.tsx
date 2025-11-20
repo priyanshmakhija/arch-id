@@ -26,42 +26,50 @@ const ArtifactDetailPage: React.FC = () => {
         // If we have a barcode in query string, prioritize searching by barcode first
         // This handles cases where QR codes have outdated IDs but correct barcodes
         if (barcodeFromQuery) {
-          try {
-            // Try to fetch directly by barcode using the new endpoint
-            const foundByBarcode = await fetchArtifactByBarcode(barcodeFromQuery);
-            if (cancelled) return;
-            setArtifact(foundByBarcode);
-            const catalogs = loadCatalogs();
-            const foundCatalog = catalogs.find(c => c.id === foundByBarcode.catalogId) || null;
-            setCatalog(foundCatalog);
-            setLoading(false);
-            return;
-          } catch {
-            // If API endpoint fails, try searching all artifacts
+          const trimmedBarcode = barcodeFromQuery.trim();
+          if (trimmedBarcode) {
             try {
-              const allArtifacts = await fetchArtifacts();
-              const foundByBarcode = allArtifacts.find(a => a.barcode === barcodeFromQuery);
-              if (foundByBarcode) {
-                if (cancelled) return;
-                setArtifact(foundByBarcode);
-                const catalogs = loadCatalogs();
-                const foundCatalog = catalogs.find(c => c.id === foundByBarcode.catalogId) || null;
-                setCatalog(foundCatalog);
-                setLoading(false);
-                return;
-              }
-            } catch {
-              // Fallback to local storage
-              const localArtifacts = loadArtifacts();
-              const foundByBarcode = localArtifacts.find(a => a.barcode === barcodeFromQuery);
-              if (foundByBarcode) {
-                if (cancelled) return;
-                setArtifact(foundByBarcode);
-                const catalogs = loadCatalogs();
-                const foundCatalog = catalogs.find(c => c.id === foundByBarcode.catalogId) || null;
-                setCatalog(foundCatalog);
-                setLoading(false);
-                return;
+              // Try to fetch directly by barcode using the new endpoint
+              const foundByBarcode = await fetchArtifactByBarcode(trimmedBarcode);
+              if (cancelled) return;
+              setArtifact(foundByBarcode);
+              const catalogs = loadCatalogs();
+              const foundCatalog = catalogs.find(c => c.id === foundByBarcode.catalogId) || null;
+              setCatalog(foundCatalog);
+              setLoading(false);
+              return;
+            } catch (err) {
+              console.log('Barcode endpoint failed, trying fallback methods:', err);
+              // If API endpoint fails, try searching all artifacts
+              try {
+                const allArtifacts = await fetchArtifacts();
+                const foundByBarcode = allArtifacts.find(a => 
+                  a.barcode === trimmedBarcode || a.barcode.trim() === trimmedBarcode
+                );
+                if (foundByBarcode) {
+                  if (cancelled) return;
+                  setArtifact(foundByBarcode);
+                  const catalogs = loadCatalogs();
+                  const foundCatalog = catalogs.find(c => c.id === foundByBarcode.catalogId) || null;
+                  setCatalog(foundCatalog);
+                  setLoading(false);
+                  return;
+                }
+              } catch {
+                // Fallback to local storage
+                const localArtifacts = loadArtifacts();
+                const foundByBarcode = localArtifacts.find(a => 
+                  a.barcode === trimmedBarcode || a.barcode.trim() === trimmedBarcode
+                );
+                if (foundByBarcode) {
+                  if (cancelled) return;
+                  setArtifact(foundByBarcode);
+                  const catalogs = loadCatalogs();
+                  const foundCatalog = catalogs.find(c => c.id === foundByBarcode.catalogId) || null;
+                  setCatalog(foundCatalog);
+                  setLoading(false);
+                  return;
+                }
               }
             }
           }

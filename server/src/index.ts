@@ -394,13 +394,18 @@ app.listen(port, '0.0.0.0', () => {
   console.log(`Accessible from your local network at http://192.168.4.29:${port}`);
   
   // Auto-seed database on startup (runs in background, doesn't block server start)
-  // This is especially useful for Render's free tier where database is ephemeral
-  // Run after server starts so server is ready to serve requests immediately
-  setImmediate(() => {
-    autoSeedDatabase().catch((error) => {
-      console.error('⚠️  Auto-seed failed (server will continue):', error.message);
+  // Can be disabled by setting DISABLE_AUTO_SEED=true environment variable
+  // With PostgreSQL, auto-seed only runs if database is empty
+  const disableAutoSeed = process.env.DISABLE_AUTO_SEED === 'true';
+  if (!disableAutoSeed) {
+    setImmediate(() => {
+      autoSeedDatabase().catch((error) => {
+        console.error('⚠️  Auto-seed failed (server will continue):', error.message);
+      });
     });
-  });
+  } else {
+    console.log('⏭️  Auto-seed disabled (DISABLE_AUTO_SEED=true)');
+  }
 });
 
 

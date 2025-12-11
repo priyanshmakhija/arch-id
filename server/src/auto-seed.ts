@@ -192,11 +192,15 @@ export async function autoSeedDatabase(): Promise<void> {
     const artifactCount = await dbQuery(() => db.prepare('SELECT COUNT(*) as count FROM artifacts').get()) as { count: number };
     
     // If artifacts already exist, skip seeding (database is not empty)
+    // This prevents re-seeding on every restart when using PostgreSQL
     if (artifactCount.count > 0) {
       const catalogCount = await dbQuery(() => db.prepare('SELECT COUNT(*) as count FROM catalogs').get()) as { count: number };
-      console.log(`✅ Database already has data: ${catalogCount.count} catalogs, ${artifactCount.count} artifacts`);
+      console.log(`✅ Database already has data: ${catalogCount.count} catalogs, ${artifactCount.count} artifacts - skipping auto-seed`);
       return;
     }
+    
+    // Only seed if database is completely empty
+    console.log('🌱 Database is empty, starting auto-seed...');
     
     console.log('🌱 Database is empty, starting auto-seed...');
     

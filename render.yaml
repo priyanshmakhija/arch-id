@@ -19,6 +19,9 @@ services:
         value: 4000
       - key: CORS_ORIGIN
         value: https://archaeology-frontend.onrender.com
+      # Disable auto-seed when using PostgreSQL (data persists, no need to re-seed)
+      - key: DISABLE_AUTO_SEED
+        value: "true"
       # DATABASE_URL is automatically set by Render when database is linked
       # If not using render.yaml linking, you'll need to add it manually:
       # - key: DATABASE_URL

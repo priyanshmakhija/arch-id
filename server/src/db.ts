@@ -4,6 +4,13 @@ import { Pool } from 'pg';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+// Early debug logging - check environment variable immediately
+console.log('🔍 Environment check:');
+console.log('   DATABASE_URL exists:', !!process.env.DATABASE_URL);
+console.log('   DATABASE_URL value:', process.env.DATABASE_URL ? 
+  (process.env.DATABASE_URL.substring(0, 30) + '...' + process.env.DATABASE_URL.substring(Math.max(0, process.env.DATABASE_URL.length - 20))) : 
+  'NOT SET');
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -108,6 +115,14 @@ class PostgreSQLAdapter implements DatabaseAdapter {
 // Initialize database based on environment
 let db: DatabaseAdapter;
 const databaseUrl = process.env.DATABASE_URL;
+
+// Debug logging to help troubleshoot
+if (databaseUrl) {
+  console.log('🔍 DATABASE_URL is set:', databaseUrl.substring(0, 20) + '...' + databaseUrl.substring(databaseUrl.length - 20));
+} else {
+  console.log('⚠️  DATABASE_URL is NOT set - using SQLite');
+  console.log('   To use PostgreSQL, set DATABASE_URL environment variable');
+}
 
 if (databaseUrl && databaseUrl.startsWith('postgres://')) {
   // Use PostgreSQL in production (Render)

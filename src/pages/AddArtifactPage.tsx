@@ -163,12 +163,23 @@ const AddArtifactPage: React.FC = () => {
         lastModified: new Date().toISOString()
       };
 
-      // Persist to database API; fallback to local storage on failure
+      // Persist to database API
       try {
         await createArtifact(newArtifact);
-      } catch (_apiErr) {
-        const updatedArtifacts = [...artifacts, newArtifact];
-        saveArtifacts(updatedArtifacts);
+        console.log('✅ Artifact saved to database:', newArtifact.id);
+      } catch (apiErr) {
+        console.error('❌ Failed to save artifact to database:', apiErr);
+        // With PostgreSQL, we should always use the API
+        // Fallback to local storage only if absolutely necessary
+        try {
+          const localArtifacts = loadArtifacts();
+          const updatedArtifacts = [...localArtifacts, newArtifact];
+          saveArtifacts(updatedArtifacts);
+          console.warn('⚠️  Saved to local storage as fallback');
+        } catch (localErr) {
+          console.error('❌ Failed to save to local storage:', localErr);
+          throw new Error('Failed to save artifact. Please try again.');
+        }
       }
 
       // Update catalog to include new artifact

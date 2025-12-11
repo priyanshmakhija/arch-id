@@ -2,6 +2,12 @@
 // Seeds the database with artifacts and images if the database is empty
 import db from './db.js';
 
+// Helper to handle both sync (SQLite) and async (PostgreSQL) database calls
+const dbQuery = async <T>(queryFn: () => T | Promise<T>): Promise<T> => {
+  const result = queryFn();
+  return result instanceof Promise ? result : Promise.resolve(result);
+};
+
 function generateUniqueId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substring(2);
 }
@@ -183,11 +189,11 @@ export async function autoSeedDatabase(): Promise<void> {
     console.log('🔍 Checking if database needs seeding...');
     
     // Check if artifacts exist
-    const artifactCount = db.prepare('SELECT COUNT(*) as count FROM artifacts').get() as { count: number };
+    const artifactCount = await dbQuery(() => db.prepare('SELECT COUNT(*) as count FROM artifacts').get()) as { count: number };
     
     // If artifacts already exist, skip seeding (database is not empty)
     if (artifactCount.count > 0) {
-      const catalogCount = db.prepare('SELECT COUNT(*) as count FROM catalogs').get() as { count: number };
+      const catalogCount = await dbQuery(() => db.prepare('SELECT COUNT(*) as count FROM catalogs').get()) as { count: number };
       console.log(`✅ Database already has data: ${catalogCount.count} catalogs, ${artifactCount.count} artifacts`);
       return;
     }
@@ -196,7 +202,7 @@ export async function autoSeedDatabase(): Promise<void> {
     
     // Create default catalog if it doesn't exist
     let catalogId: string;
-    const existingCatalogs = db.prepare('SELECT * FROM catalogs LIMIT 1').all() as Array<{ id: string; name: string }>;
+    const existingCatalogs = await dbQuery(() => db.prepare('SELECT * FROM catalogs LIMIT 1').all()) as Array<{ id: string; name: string }>;
     
     if (existingCatalogs.length > 0) {
       catalogId = existingCatalogs[0].id;
@@ -204,7 +210,7 @@ export async function autoSeedDatabase(): Promise<void> {
     } else {
       const now = new Date().toISOString();
       catalogId = generateUniqueId();
-      db.prepare(`
+      await dbQuery(() => db.prepare(`
         INSERT INTO catalogs (id, name, description, creationDate, lastModified)
         VALUES (?, ?, ?, ?, ?)
       `).run(
@@ -213,7 +219,7 @@ export async function autoSeedDatabase(): Promise<void> {
         'A collection of archaeological artifacts from human history',
         now,
         now
-      );
+      ));
       console.log(`✅ Created catalog: Historical Artifacts Collection`);
     }
     
@@ -244,7 +250,7 @@ export async function autoSeedDatabase(): Promise<void> {
       );
       
       try {
-        insertArtifact.run(
+        await dbQuery(() => insertArtifact.run(
           artifactId,
           catalogId,
           null,
@@ -261,7 +267,7 @@ export async function autoSeedDatabase(): Promise<void> {
           null,
           now,
           now
-        );
+        ));
         successCount++;
         const imageType = imageData.startsWith('data:image/svg') ? 'placeholder' : 'real';
         console.log(`  ✅ ${i + 1}. ${artifactData.name} (${barcode}) - Created with ${imageType} image`);
@@ -272,8 +278,8 @@ export async function autoSeedDatabase(): Promise<void> {
     
     console.log(`\n✨ Auto-seed complete!`);
     console.log(`   ✅ Successfully created: ${successCount} artifacts with images`);
-    const finalCatalogCount = db.prepare('SELECT COUNT(*) as count FROM catalogs').get() as { count: number };
-    const finalArtifactCount = db.prepare('SELECT COUNT(*) as count FROM artifacts').get() as { count: number };
+    const finalCatalogCount = await dbQuery(() => db.prepare('SELECT COUNT(*) as count FROM catalogs').get()) as { count: number };
+    const finalArtifactCount = await dbQuery(() => db.prepare('SELECT COUNT(*) as count FROM artifacts').get()) as { count: number };
     console.log(`   📦 Database now has: ${finalCatalogCount.count} catalog(s), ${finalArtifactCount.count} artifact(s)`);
   } catch (error: any) {
     console.error('❌ Error during auto-seed:', error.message);

@@ -6,6 +6,13 @@ import { autoSeedDatabase } from './auto-seed.js';
 
 const app = express();
 
+// Helper to handle both sync (SQLite) and async (PostgreSQL) database calls
+const isAsync = db.isAsync;
+const dbQuery = async <T>(queryFn: () => T | Promise<T>): Promise<T> => {
+  const result = queryFn();
+  return result instanceof Promise ? result : Promise.resolve(result);
+};
+
 // CORS configuration - allow frontend origin
 const corsOrigin = process.env.CORS_ORIGIN || '*';
 const allowedOrigins = corsOrigin === '*' 
@@ -94,13 +101,13 @@ app.post('/api/login', (req, res) => {
 });
 
 // Catalog routes
-app.get('/api/catalogs', (_req, res) => {
-  const rows = db.prepare('SELECT * FROM catalogs').all();
+app.get('/api/catalogs', async (_req, res) => {
+  const rows = await dbQuery(() => db.prepare('SELECT * FROM catalogs').all());
   res.json(rows);
 });
 
-app.get('/api/catalogs/:id', (req, res) => {
-  const row = db.prepare('SELECT * FROM catalogs WHERE id = ?').get(req.params.id);
+app.get('/api/catalogs/:id', async (req, res) => {
+  const row = await dbQuery(() => db.prepare('SELECT * FROM catalogs WHERE id = ?').get(req.params.id));
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json(row);
 });
@@ -113,14 +120,14 @@ const catalogSchema = z.object({
   lastModified: z.string(),
 });
 
-app.post('/api/catalogs', (req, res) => {
+app.post('/api/catalogs', async (req, res) => {
   const parse = catalogSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: parse.error.flatten() });
   const c = parse.data;
   const stmt = db.prepare(
     'INSERT INTO catalogs (id, name, description, creationDate, lastModified) VALUES (?, ?, ?, ?, ?)'
   );
-  stmt.run(c.id, c.name, c.description, c.creationDate, c.lastModified);
+  await dbQuery(() => stmt.run(c.id, c.name, c.description, c.creationDate, c.lastModified));
   res.status(201).json(c);
 });
 
@@ -130,27 +137,27 @@ const catalogUpdateSchema = z.object({
   lastModified: z.string(),
 });
 
-app.put('/api/catalogs/:id', (req, res) => {
+app.put('/api/catalogs/:id', async (req, res) => {
   const parse = catalogUpdateSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: parse.error.flatten() });
   const c = parse.data;
   const stmt = db.prepare('UPDATE catalogs SET name = ?, description = ?, lastModified = ? WHERE id = ?');
-  const result = stmt.run(c.name, c.description, c.lastModified, req.params.id);
+  const result = await dbQuery(() => stmt.run(c.name, c.description, c.lastModified, req.params.id));
   if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
-  const updated = db.prepare('SELECT * FROM catalogs WHERE id = ?').get(req.params.id);
+  const updated = await dbQuery(() => db.prepare('SELECT * FROM catalogs WHERE id = ?').get(req.params.id));
   res.json(updated);
 });
 
-app.delete('/api/catalogs/:id', (req, res) => {
+app.delete('/api/catalogs/:id', async (req, res) => {
   const stmt = db.prepare('DELETE FROM catalogs WHERE id = ?');
-  const result = stmt.run(req.params.id);
+  const result = await dbQuery(() => stmt.run(req.params.id));
   if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
   res.status(204).send();
 });
 
 // Artifact routes
-app.get('/api/artifacts', (_req, res) => {
-  const rows = db.prepare('SELECT * FROM artifacts').all();
+app.get('/api/artifacts', async (_req, res) => {
+  const rows = await dbQuery(() => db.prepare('SELECT * FROM artifacts').all());
   const artifacts = rows.map((r: any) => ({
     ...r,
     images2D: JSON.parse(r.images2D ?? '[]'),
@@ -159,13 +166,13 @@ app.get('/api/artifacts', (_req, res) => {
   res.json(artifacts);
 });
 
-app.get('/api/artifacts/:id', (req, res) => {
+app.get('/api/artifacts/:id', async (req, res) => {
   // Try to find by ID first
-  let row = db.prepare('SELECT * FROM artifacts WHERE id = ?').get(req.params.id) as any;
+  let row = await dbQuery(() => db.prepare('SELECT * FROM artifacts WHERE id = ?').get(req.params.id)) as any;
   
   // If not found by ID, try to find by barcode (for QR code support)
   if (!row) {
-    row = db.prepare('SELECT * FROM artifacts WHERE barcode = ?').get(req.params.id) as any;
+    row = await dbQuery(() => db.prepare('SELECT * FROM artifacts WHERE barcode = ?').get(req.params.id)) as any;
   }
   
   if (!row) return res.status(404).json({ error: 'Not found' });
@@ -178,13 +185,13 @@ app.get('/api/artifacts/:id', (req, res) => {
 });
 
 // Endpoint to find artifact by barcode (for QR code scanning)
-app.get('/api/artifacts/by-barcode/:barcode', (req, res) => {
+app.get('/api/artifacts/by-barcode/:barcode', async (req, res) => {
   // Decode the barcode parameter (it comes URL-encoded)
   const barcode = decodeURIComponent(req.params.barcode).trim();
-  const row = db.prepare('SELECT * FROM artifacts WHERE barcode = ?').get(barcode) as any;
+  const row = await dbQuery(() => db.prepare('SELECT * FROM artifacts WHERE barcode = ?').get(barcode)) as any;
   if (!row) {
     // Try case-insensitive search as fallback
-    const rows = db.prepare('SELECT * FROM artifacts WHERE UPPER(barcode) = UPPER(?)').all(barcode) as any[];
+    const rows = await dbQuery(() => db.prepare('SELECT * FROM artifacts WHERE UPPER(barcode) = UPPER(?)').all(barcode)) as any[];
     if (rows.length > 0) {
       const artifact = { 
         ...rows[0], 
@@ -222,7 +229,7 @@ const artifactSchema = z.object({
   lastModified: z.string(),
 });
 
-app.post('/api/artifacts', (req, res) => {
+app.post('/api/artifacts', async (req, res) => {
   if (!ensureRole(req, res, ['admin', 'archaeologist'])) return;
   const parse = artifactSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: parse.error.flatten() });
@@ -230,19 +237,19 @@ app.post('/api/artifacts', (req, res) => {
   
   try {
     // Verify catalog exists
-    const catalog = db.prepare('SELECT id FROM catalogs WHERE id = ?').get(a.catalogId);
+    const catalog = await dbQuery(() => db.prepare('SELECT id FROM catalogs WHERE id = ?').get(a.catalogId));
     if (!catalog) {
       return res.status(400).json({ error: `Catalog with id "${a.catalogId}" does not exist` });
     }
     
     // Check if barcode already exists
-    const existingBarcode = db.prepare('SELECT id FROM artifacts WHERE barcode = ?').get(a.barcode);
+    const existingBarcode = await dbQuery(() => db.prepare('SELECT id FROM artifacts WHERE barcode = ?').get(a.barcode));
     if (existingBarcode) {
       return res.status(400).json({ error: `Artifact with barcode "${a.barcode}" already exists` });
     }
     
     // Check if artifact ID already exists
-    const existingId = db.prepare('SELECT id FROM artifacts WHERE id = ?').get(a.id);
+    const existingId = await dbQuery(() => db.prepare('SELECT id FROM artifacts WHERE id = ?').get(a.id));
     if (existingId) {
       return res.status(400).json({ error: `Artifact with id "${a.id}" already exists` });
     }
@@ -256,7 +263,7 @@ app.post('/api/artifacts', (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     
-    stmt.run(
+    await dbQuery(() => stmt.run(
       a.id,
       a.catalogId,
       a.subCatalogId ?? null,
@@ -273,21 +280,21 @@ app.post('/api/artifacts', (req, res) => {
       a.video ?? null,
       a.creationDate,
       a.lastModified
-    );
+    ));
     
     res.status(201).json(a);
   } catch (error: any) {
     console.error('Error creating artifact:', error);
-    // Check for SQLite constraint errors
-    if (error.code === 'SQLITE_CONSTRAINT') {
-      if (error.message.includes('FOREIGN KEY')) {
+    // Check for database constraint errors (both SQLite and PostgreSQL)
+    if (error.code === 'SQLITE_CONSTRAINT' || error.code === '23505' || error.code === '23503') {
+      if (error.message.includes('FOREIGN KEY') || error.code === '23503') {
         return res.status(400).json({ error: `Catalog with id "${a.catalogId}" does not exist` });
       }
-      if (error.message.includes('UNIQUE')) {
-        if (error.message.includes('barcode')) {
+      if (error.message.includes('UNIQUE') || error.code === '23505') {
+        if (error.message.includes('barcode') || error.constraint === 'artifacts_barcode_key') {
           return res.status(400).json({ error: `Artifact with barcode "${a.barcode}" already exists` });
         }
-        if (error.message.includes('id')) {
+        if (error.message.includes('id') || error.constraint === 'artifacts_pkey') {
           return res.status(400).json({ error: `Artifact with id "${a.id}" already exists` });
         }
       }
@@ -315,7 +322,7 @@ const artifactUpdateSchema = z.object({
   lastModified: z.string(),
 });
 
-app.put('/api/artifacts/:id', (req, res) => {
+app.put('/api/artifacts/:id', async (req, res) => {
   if (!ensureRole(req, res, ['admin', 'archaeologist'])) return;
   const parse = artifactUpdateSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: parse.error.flatten() });
@@ -328,7 +335,7 @@ app.put('/api/artifacts/:id', (req, res) => {
       lastModified = ?
     WHERE id = ?
   `);
-  const result = stmt.run(
+  const result = await dbQuery(() => stmt.run(
     a.catalogId,
     a.subCatalogId ?? null,
     a.name,
@@ -344,9 +351,9 @@ app.put('/api/artifacts/:id', (req, res) => {
     a.video ?? null,
     a.lastModified,
     req.params.id
-  );
+  ));
   if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
-  const updated = db.prepare('SELECT * FROM artifacts WHERE id = ?').get(req.params.id) as any;
+  const updated = await dbQuery(() => db.prepare('SELECT * FROM artifacts WHERE id = ?').get(req.params.id)) as any;
   const artifact = { 
     ...updated, 
     images2D: JSON.parse(updated.images2D ?? '[]'),
@@ -355,22 +362,24 @@ app.put('/api/artifacts/:id', (req, res) => {
   res.json(artifact);
 });
 
-app.delete('/api/artifacts/:id', (req, res) => {
+app.delete('/api/artifacts/:id', async (req, res) => {
   if (!ensureRole(req, res, ['admin', 'archaeologist'])) return;
   const stmt = db.prepare('DELETE FROM artifacts WHERE id = ?');
-  const result = stmt.run(req.params.id);
+  const result = await dbQuery(() => stmt.run(req.params.id));
   if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
   res.status(204).send();
 });
 
 // Stats endpoint
-app.get('/api/stats', (_req, res) => {
-  const catalogCount = db.prepare('SELECT COUNT(*) as count FROM catalogs').get() as any;
-  const artifactCount = db.prepare('SELECT COUNT(*) as count FROM artifacts').get() as any;
-  const recentCount = db.prepare(`
-    SELECT COUNT(*) as count FROM artifacts 
-    WHERE creationDate > datetime('now', '-7 days')
-  `).get() as any;
+app.get('/api/stats', async (_req, res) => {
+  const isPostgres = process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres://');
+  const catalogCount = await dbQuery(() => db.prepare('SELECT COUNT(*) as count FROM catalogs').get()) as any;
+  const artifactCount = await dbQuery(() => db.prepare('SELECT COUNT(*) as count FROM artifacts').get()) as any;
+  // Use PostgreSQL date function if using PostgreSQL, otherwise SQLite
+  const recentQuery = isPostgres
+    ? `SELECT COUNT(*) as count FROM artifacts WHERE "creationDate" > NOW() - INTERVAL '7 days'`
+    : `SELECT COUNT(*) as count FROM artifacts WHERE creationDate > datetime('now', '-7 days')`;
+  const recentCount = await dbQuery(() => db.prepare(recentQuery).get()) as any;
   res.json({
     totalCatalogs: catalogCount?.count ?? 0,
     totalArtifacts: artifactCount?.count ?? 0,

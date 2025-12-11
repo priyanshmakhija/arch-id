@@ -68,8 +68,18 @@ class PostgreSQLAdapter implements DatabaseAdapter {
   prepare(query: string) {
     // Convert SQLite-style queries to PostgreSQL
     // Handle column names that need quoting (camelCase -> "camelCase")
+    // Don't replace if already quoted (avoid ""heightDepth"" issues)
     const pgQuery = query
-      .replace(/\b(catalogId|subCatalogId|creationDate|lastModified|heightDepth|locationFound|dateFound|images2D|image3D)\b/gi, '"$1"')
+      .replace(/\b(catalogId|subCatalogId|creationDate|lastModified|heightDepth|locationFound|dateFound|images2D|image3D)\b/gi, (match, p1, offset, string) => {
+        // Check if this identifier is already quoted
+        const before = string.substring(Math.max(0, offset - 1), offset);
+        const after = string.substring(offset + match.length, offset + match.length + 1);
+        if (before === '"' || after === '"') {
+          // Already quoted, don't quote again
+          return match;
+        }
+        return `"${match}"`;
+      })
       .replace(/\?/g, (match, offset, string) => {
         // Count ? before this position to determine parameter number
         const before = string.substring(0, offset);
@@ -249,42 +259,59 @@ async function initializeSchema() {
   }
 
   // Fill in missing dimensions (for both databases)
-  const randomDimensionValue = () => `${Math.floor(Math.random() * 16) + 5} cm`;
-  type ArtifactDimensionRow = {
-    id: string;
-    length: string | null;
-    heightDepth: string | null;
-    width: string | null;
-  };
-  
-  const updateDimensions = db.prepare(`
-    UPDATE artifacts
-    SET length = ?, heightDepth = ?, width = ?
-    WHERE id = ?
-  `);
-
-  const artifactDimensionRows = isPostgres 
-    ? await db.prepare(`SELECT id, length, "heightDepth", width FROM artifacts`).all()
-    : db.prepare(`SELECT id, length, heightDepth, width FROM artifacts`).all() as ArtifactDimensionRow[];
-
-  for (const artifact of artifactDimensionRows) {
-    const currentLength = artifact.length?.toString().trim();
-    const currentHeightDepth = artifact.heightDepth?.toString().trim();
-    const currentWidth = artifact.width?.toString().trim();
-
-    if (currentLength && currentHeightDepth && currentWidth) {
-      continue;
+  // Only run if artifacts table exists and has data
+  try {
+    const randomDimensionValue = () => `${Math.floor(Math.random() * 16) + 5} cm`;
+    type ArtifactDimensionRow = {
+      id: string;
+      length: string | null;
+      heightDepth: string | null;
+      width: string | null;
+    };
+    
+    let artifactDimensionRows: ArtifactDimensionRow[];
+    if (isPostgres) {
+      // Use native query for PostgreSQL to avoid column name replacement issues
+      const result = await (db as PostgreSQLAdapter).native.query('SELECT id, length, "heightDepth", width FROM artifacts');
+      artifactDimensionRows = result.rows as ArtifactDimensionRow[];
+    } else {
+      artifactDimensionRows = db.prepare(`SELECT id, length, heightDepth, width FROM artifacts`).all() as ArtifactDimensionRow[];
     }
 
-    const lengthValue = currentLength && currentLength.length > 0 ? currentLength : randomDimensionValue();
-    const heightDepthValue =
-      currentHeightDepth && currentHeightDepth.length > 0 ? currentHeightDepth : randomDimensionValue();
-    const widthValue = currentWidth && currentWidth.length > 0 ? currentWidth : randomDimensionValue();
+    // Only update if there are artifacts
+    if (artifactDimensionRows.length > 0) {
+      const updateDimensions = db.prepare(`
+        UPDATE artifacts
+        SET length = ?, heightDepth = ?, width = ?
+        WHERE id = ?
+      `);
 
-    if (isPostgres) {
-      await updateDimensions.run(lengthValue, heightDepthValue, widthValue, artifact.id);
-    } else {
-      (updateDimensions.run as any)(lengthValue, heightDepthValue, widthValue, artifact.id);
+      for (const artifact of artifactDimensionRows) {
+        const currentLength = artifact.length?.toString().trim();
+        const currentHeightDepth = artifact.heightDepth?.toString().trim();
+        const currentWidth = artifact.width?.toString().trim();
+
+        if (currentLength && currentHeightDepth && currentWidth) {
+          continue;
+        }
+
+        const lengthValue = currentLength && currentLength.length > 0 ? currentLength : randomDimensionValue();
+        const heightDepthValue =
+          currentHeightDepth && currentHeightDepth.length > 0 ? currentHeightDepth : randomDimensionValue();
+        const widthValue = currentWidth && currentWidth.length > 0 ? currentWidth : randomDimensionValue();
+
+        if (isPostgres) {
+          await updateDimensions.run(lengthValue, heightDepthValue, widthValue, artifact.id);
+        } else {
+          (updateDimensions.run as any)(lengthValue, heightDepthValue, widthValue, artifact.id);
+        }
+      }
+    }
+  } catch (error: any) {
+    // Ignore errors in dimension update - not critical for schema initialization
+    // This might fail if table doesn't exist yet or is empty, which is fine
+    if (error.message && !error.message.includes('does not exist') && !error.message.includes('relation')) {
+      console.warn('⚠️  Dimension update failed (non-critical):', error.message);
     }
   }
 }

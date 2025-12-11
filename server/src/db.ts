@@ -98,16 +98,22 @@ class PostgreSQLAdapter implements DatabaseAdapter {
 
   async exec(query: string) {
     // PostgreSQL doesn't support multiple statements in one query easily
-    // Split by semicolon and execute each
-    const statements = query.split(';').filter(s => s.trim());
+    // Split by semicolon and execute each statement separately
+    const statements = query.split(';').map(s => s.trim()).filter(s => s.length > 0);
     for (const statement of statements) {
-      if (statement.trim()) {
-        await this.pool.query(statement.trim());
+      try {
+        await this.pool.query(statement);
+      } catch (error: any) {
+        // Ignore "already exists" errors for CREATE TABLE IF NOT EXISTS
+        if (error.message && error.message.includes('already exists')) {
+          continue;
+        }
+        throw error;
       }
     }
   }
 
-  get native() {
+  get native(): Pool {
     return this.pool;
   }
 }
@@ -145,36 +151,49 @@ async function initializeSchema() {
   const isPostgres = databaseUrl && (databaseUrl.startsWith('postgres://') || databaseUrl.startsWith('postgresql://'));
   
   if (isPostgres) {
-    // PostgreSQL schema
-    await db.exec(`
-      CREATE TABLE IF NOT EXISTS catalogs (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT NOT NULL,
-        "creationDate" TEXT NOT NULL,
-        "lastModified" TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS artifacts (
-        id TEXT PRIMARY KEY,
-        "catalogId" TEXT NOT NULL,
-        "subCatalogId" TEXT,
-        name TEXT NOT NULL,
-        barcode TEXT NOT NULL UNIQUE,
-        details TEXT NOT NULL,
-        length TEXT,
-        "heightDepth" TEXT,
-        width TEXT,
-        "locationFound" TEXT NOT NULL,
-        "dateFound" TEXT NOT NULL,
-        "images2D" TEXT NOT NULL,
-        "image3D" TEXT,
-        video TEXT,
-        "creationDate" TEXT NOT NULL,
-        "lastModified" TEXT NOT NULL,
-        FOREIGN KEY ("catalogId") REFERENCES catalogs(id)
-      );
-    `);
+    // PostgreSQL schema - execute statements separately to avoid parsing issues
+    try {
+      await (db as PostgreSQLAdapter).native.query(`
+        CREATE TABLE IF NOT EXISTS catalogs (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT NOT NULL,
+          "creationDate" TEXT NOT NULL,
+          "lastModified" TEXT NOT NULL
+        )
+      `);
+      
+      await (db as PostgreSQLAdapter).native.query(`
+        CREATE TABLE IF NOT EXISTS artifacts (
+          id TEXT PRIMARY KEY,
+          "catalogId" TEXT NOT NULL,
+          "subCatalogId" TEXT,
+          name TEXT NOT NULL,
+          barcode TEXT NOT NULL UNIQUE,
+          details TEXT NOT NULL,
+          length TEXT,
+          "heightDepth" TEXT,
+          width TEXT,
+          "locationFound" TEXT NOT NULL,
+          "dateFound" TEXT NOT NULL,
+          "images2D" TEXT NOT NULL,
+          "image3D" TEXT,
+          video TEXT,
+          "creationDate" TEXT NOT NULL,
+          "lastModified" TEXT NOT NULL,
+          FOREIGN KEY ("catalogId") REFERENCES catalogs(id)
+        )
+      `);
+      console.log('✅ PostgreSQL schema initialized successfully');
+    } catch (error: any) {
+      // Ignore "already exists" errors
+      if (error.message && error.message.includes('already exists')) {
+        console.log('✅ PostgreSQL tables already exist');
+      } else {
+        console.error('❌ Failed to initialize PostgreSQL schema:', error.message);
+        throw error;
+      }
+    }
   } else {
     // SQLite schema
     db.exec(`

@@ -5,6 +5,7 @@ import { Catalog, Artifact } from '../types';
 import { loadCatalogs, loadArtifacts, saveCatalogs } from '../utils/storageUtils';
 import { fetchCatalog, fetchArtifacts, deleteCatalog } from '../utils/api';
 import { useAuth, hasRole } from '../context/AuthContext';
+import QRCodeGenerator from '../components/QRCodeGenerator';
 
 const CatalogDetailPage: React.FC = () => {
   const navigate = useNavigate();
@@ -174,29 +175,55 @@ const CatalogDetailPage: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {artifacts.map((artifact) => (
-              <Link
-                key={artifact.id}
-                to={`/artifact/${artifact.id}`}
-                className="bg-white overflow-hidden shadow rounded-lg hover:shadow-md transition-shadow"
-              >
-                <div className="p-6">
-                  <h3 className="text-lg font-medium text-gray-900">
-                    {artifact.name}
-                  </h3>
-                  <p className="mt-2 text-sm text-gray-600 line-clamp-2">
-                    {artifact.details}
-                  </p>
-                  <div className="mt-4 flex items-center text-sm text-gray-500">
-                    <MapPin className="h-4 w-4 mr-1" />
-                    {artifact.locationFound}
-                  </div>
-                  <div className="mt-2 text-sm text-gray-500">
-                    Found: {artifact.dateFound}
+            {artifacts.map((artifact) => {
+              const artifactUrl = `${window.location.origin}/artifact/${artifact.id}?barcode=${artifact.barcode}`;
+              return (
+                <div
+                  key={artifact.id}
+                  className="bg-white overflow-hidden shadow rounded-lg hover:shadow-md transition-shadow"
+                >
+                  <div className="p-6">
+                    <div className="flex items-start justify-between mb-3">
+                      <Link
+                        to={`/artifact/${artifact.id}`}
+                        className="flex-1 hover:text-blue-600 transition-colors"
+                      >
+                        <h3 className="text-lg font-medium text-gray-900">
+                          {artifact.name}
+                        </h3>
+                      </Link>
+                      <div className="ml-4 flex-shrink-0">
+                        <QRCodeGenerator
+                          value={artifactUrl}
+                          size={80}
+                          showText={false}
+                          className="border border-gray-200 rounded p-1 bg-white"
+                        />
+                      </div>
+                    </div>
+                    <Link
+                      to={`/artifact/${artifact.id}`}
+                      className="block"
+                    >
+                      <p className="text-sm text-gray-600 line-clamp-2 mb-3">
+                        {artifact.details}
+                      </p>
+                      <div className="flex items-center text-sm text-gray-500 mb-2">
+                        <MapPin className="h-4 w-4 mr-1" />
+                        {artifact.locationFound}
+                      </div>
+                      <div className="text-sm text-gray-500 mb-2">
+                        Found: {artifact.dateFound}
+                      </div>
+                      <div className="flex items-center text-xs text-gray-400 font-mono">
+                        <QrCode className="h-3 w-3 mr-1" />
+                        {artifact.barcode}
+                      </div>
+                    </Link>
                   </div>
                 </div>
-              </Link>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

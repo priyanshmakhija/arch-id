@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Save } from 'lucide-react';
 import { Artifact, Catalog } from '../types';
 import { loadCatalogs, loadArtifacts, saveArtifacts, saveCatalogs } from '../utils/storageUtils';
-import { createArtifact } from '../utils/api';
+import { createArtifact, fetchArtifacts, fetchCatalogs } from '../utils/api';
 import { generateUniqueId, generateBarcodeId } from '../utils/barcodeUtils';
 import MediaUpload from '../components/MediaUpload';
 import QRCodeGenerator from '../components/QRCodeGenerator';
@@ -31,14 +31,43 @@ const AddArtifactPage: React.FC = () => {
   const [createdArtifact, setCreatedArtifact] = useState<Artifact | null>(null);
 
   useEffect(() => {
-    const storedCatalogs = loadCatalogs();
-    setCatalogs(storedCatalogs);
+    // Load catalogs from API (database)
+    const loadCatalogsFromAPI = async () => {
+      try {
+        const apiCatalogs = await fetchCatalogs();
+        setCatalogs(apiCatalogs);
+      } catch (error) {
+        // Fallback to local storage if API fails
+        const storedCatalogs = loadCatalogs();
+        setCatalogs(storedCatalogs);
+      }
+    };
+    loadCatalogsFromAPI();
     
     // Generate unique barcode if not provided
     if (!formData.barcode) {
-      const artifacts = loadArtifacts();
-      const newBarcode = generateBarcodeId('artifact', artifacts.length + 1);
-      setFormData(prev => ({ ...prev, barcode: newBarcode }));
+      const generateBarcode = async () => {
+        try {
+          // Check database for existing artifacts to ensure uniqueness
+          const artifacts = await fetchArtifacts();
+          const newBarcode = generateBarcodeId('artifact', artifacts.length + 1);
+          // Verify it's unique
+          const existingBarcodes = artifacts.map(a => a.barcode);
+          let uniqueBarcode = newBarcode;
+          let attempts = 0;
+          while (existingBarcodes.includes(uniqueBarcode) && attempts < 10) {
+            uniqueBarcode = generateBarcodeId('artifact', artifacts.length + 1 + attempts);
+            attempts++;
+          }
+          setFormData(prev => ({ ...prev, barcode: uniqueBarcode }));
+        } catch (error) {
+          // Fallback to local storage if API fails
+          const artifacts = loadArtifacts();
+          const newBarcode = generateBarcodeId('artifact', artifacts.length + 1);
+          setFormData(prev => ({ ...prev, barcode: newBarcode }));
+        }
+      };
+      generateBarcode();
     }
   }, [formData.barcode]);
 
@@ -82,18 +111,32 @@ const AddArtifactPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const artifacts = loadArtifacts();
-      // Ensure barcode is unique - regenerate if needed
+      // Check database for barcode uniqueness (primary source)
       let uniqueBarcode = formData.barcode;
-      const existingBarcodes = artifacts.map(a => a.barcode);
-      if (existingBarcodes.includes(uniqueBarcode)) {
-        // Generate a new unique barcode
-        uniqueBarcode = generateBarcodeId('artifact', artifacts.length + 1);
-        // Keep regenerating until unique
-        let attempts = 0;
-        while (existingBarcodes.includes(uniqueBarcode) && attempts < 10) {
-          uniqueBarcode = generateBarcodeId('artifact', artifacts.length + 1 + attempts);
-          attempts++;
+      try {
+        const artifacts = await fetchArtifacts();
+        const existingBarcodes = artifacts.map(a => a.barcode);
+        if (existingBarcodes.includes(uniqueBarcode)) {
+          // Generate a new unique barcode
+          uniqueBarcode = generateBarcodeId('artifact', artifacts.length + 1);
+          // Keep regenerating until unique
+          let attempts = 0;
+          while (existingBarcodes.includes(uniqueBarcode) && attempts < 10) {
+            uniqueBarcode = generateBarcodeId('artifact', artifacts.length + 1 + attempts);
+            attempts++;
+          }
+        }
+      } catch (apiError) {
+        // Fallback to local storage check if API fails
+        const artifacts = loadArtifacts();
+        const existingBarcodes = artifacts.map(a => a.barcode);
+        if (existingBarcodes.includes(uniqueBarcode)) {
+          uniqueBarcode = generateBarcodeId('artifact', artifacts.length + 1);
+          let attempts = 0;
+          while (existingBarcodes.includes(uniqueBarcode) && attempts < 10) {
+            uniqueBarcode = generateBarcodeId('artifact', artifacts.length + 1 + attempts);
+            attempts++;
+          }
         }
       }
       

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Save } from 'lucide-react';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { Save, Plus } from 'lucide-react';
 import { Artifact, Catalog } from '../types';
 import { loadCatalogs, loadArtifacts, saveArtifacts, saveCatalogs } from '../utils/storageUtils';
-import { createArtifact, fetchArtifacts, fetchCatalogs } from '../utils/api';
+import { createArtifact, fetchArtifacts, fetchCatalogs, createCatalog } from '../utils/api';
 import { generateUniqueId, generateBarcodeId } from '../utils/barcodeUtils';
 import MediaUpload from '../components/MediaUpload';
 import QRCodeGenerator from '../components/QRCodeGenerator';
@@ -35,11 +35,38 @@ const AddArtifactPage: React.FC = () => {
     const loadCatalogsFromAPI = async () => {
       try {
         const apiCatalogs = await fetchCatalogs();
-        setCatalogs(apiCatalogs);
+        if (apiCatalogs.length === 0) {
+          // Auto-create a default catalog if none exists
+          const defaultCatalog: Catalog = {
+            id: generateUniqueId(),
+            name: 'Default Catalog',
+            description: 'Default catalog for artifacts',
+            artifacts: [],
+            creationDate: new Date().toISOString(),
+            lastModified: new Date().toISOString(),
+          };
+          try {
+            await createCatalog(defaultCatalog);
+            setCatalogs([defaultCatalog]);
+            setFormData(prev => ({ ...prev, catalogId: defaultCatalog.id }));
+          } catch (error) {
+            console.warn('Could not create default catalog:', error);
+            setCatalogs([]);
+          }
+        } else {
+          setCatalogs(apiCatalogs);
+          // Auto-select first catalog if none selected
+          if (!formData.catalogId && apiCatalogs.length > 0) {
+            setFormData(prev => ({ ...prev, catalogId: apiCatalogs[0].id }));
+          }
+        }
       } catch (error) {
         // Fallback to local storage if API fails
         const storedCatalogs = loadCatalogs();
         setCatalogs(storedCatalogs);
+        if (storedCatalogs.length > 0 && !formData.catalogId) {
+          setFormData(prev => ({ ...prev, catalogId: storedCatalogs[0].id }));
+        }
       }
     };
     loadCatalogsFromAPI();
@@ -249,7 +276,16 @@ const AddArtifactPage: React.FC = () => {
                 </div>
                 
                 <div>
-                  <label className="label">Catalog *</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="label">Catalog *</label>
+                    <Link
+                      to="/add-catalog"
+                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+                    >
+                      <Plus size={14} />
+                      <span>Create New</span>
+                    </Link>
+                  </div>
                   <select
                     name="catalogId"
                     value={formData.catalogId}
@@ -264,6 +300,11 @@ const AddArtifactPage: React.FC = () => {
                       </option>
                     ))}
                   </select>
+                  {catalogs.length === 0 && (
+                    <p className="text-sm text-gray-500 mt-1">
+                      No catalogs available. <Link to="/add-catalog" className="text-blue-600 hover:underline">Create one</Link> or a default catalog will be created automatically.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

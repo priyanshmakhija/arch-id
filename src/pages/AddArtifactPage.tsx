@@ -39,8 +39,8 @@ const AddArtifactPage: React.FC = () => {
           // Auto-create a default catalog if none exists
           const defaultCatalog: Catalog = {
             id: generateUniqueId(),
-            name: 'Default Catalog',
-            description: 'Default catalog for artifacts',
+            name: 'Archaeology Artifacts Collection',
+            description: 'Default catalog for archaeological artifacts',
             artifacts: [],
             creationDate: new Date().toISOString(),
             lastModified: new Date().toISOString(),

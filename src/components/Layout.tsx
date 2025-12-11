@@ -19,6 +19,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     () =>
       [
         { name: 'Home', href: '/', icon: Home },
+        { name: 'Catalogs', href: '/catalogs', icon: BookOpen },
         { name: 'All Artifacts', href: '/artifacts', icon: List },
         { name: 'Search Artifacts', href: '/search', icon: Search },
         canManageArtifacts ? { name: 'Add Artifact', href: '/add-artifact', icon: Plus } : null,

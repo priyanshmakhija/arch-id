@@ -219,12 +219,12 @@ export async function autoSeedDatabase(): Promise<void> {
         VALUES (?, ?, ?, ?, ?)
       `).run(
         catalogId,
-        'Historical Artifacts Collection',
-        'A collection of archaeological artifacts from human history',
+        'Archaeology Artifacts Collection',
+        'Default catalog for archaeological artifacts',
         now,
         now
       ));
-      console.log(`✅ Created catalog: Historical Artifacts Collection`);
+      console.log(`✅ Created catalog: Archaeology Artifacts Collection`);
     }
     
     // Create artifacts with real images from Wikimedia Commons

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, QrCode } from 'lucide-react';
+import { ArrowLeft, Save, QrCode, X, Image as ImageIcon } from 'lucide-react';
 import { Catalog } from '../types';
 import { loadCatalogs, loadArtifacts, saveArtifacts } from '../utils/storageUtils';
 import { fetchArtifact, fetchCatalogs, updateArtifact } from '../utils/api';
@@ -327,10 +327,73 @@ const EditArtifactPage: React.FC = () => {
 
             <div className="card">
               <h2 className="text-xl font-semibold mb-4">Media Files</h2>
-              <MediaUpload
-                onFilesSelected={setMediaFiles}
-                maxFiles={10}
-              />
+              
+              {/* Existing Images */}
+              {existingImages2D.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-medium text-gray-700">
+                      Current Images ({existingImages2D.length})
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(`Are you sure you want to remove all ${existingImages2D.length} images? This cannot be undone.`)) {
+                          setExistingImages2D([]);
+                        }
+                      }}
+                      className="text-xs text-red-600 hover:text-red-800 font-medium flex items-center space-x-1"
+                    >
+                      <X size={14} />
+                      <span>Remove All</span>
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {existingImages2D.map((image, index) => (
+                      <div key={index} className="relative group">
+                        <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 border-2 border-gray-200">
+                          <img
+                            src={image}
+                            alt={`Artifact image ${index + 1}`}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2U1ZTdlYiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5Y2EzYWYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5JbWFnZSBub3QgZm91bmQ8L3RleHQ+PC9zdmc+';
+                            }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = existingImages2D.filter((_, i) => i !== index);
+                            setExistingImages2D(updated);
+                          }}
+                          className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg hover:bg-red-700 z-10"
+                          title="Remove image"
+                        >
+                          <X size={16} />
+                        </button>
+                        <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          Image {index + 1}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Hover over images to see remove button. Click "Save Changes" to apply removals.
+                  </p>
+                </div>
+              )}
+
+              {/* Add New Images */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-3">
+                  {existingImages2D.length > 0 ? 'Add More Images' : 'Upload Images'}
+                </h3>
+                <MediaUpload
+                  onFilesSelected={setMediaFiles}
+                  maxFiles={10}
+                />
+              </div>
             </div>
           </div>
 

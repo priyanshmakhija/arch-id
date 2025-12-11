@@ -377,8 +377,9 @@ app.get('/api/stats', async (_req, res) => {
   const catalogCount = await dbQuery(() => db.prepare('SELECT COUNT(*) as count FROM catalogs').get()) as any;
   const artifactCount = await dbQuery(() => db.prepare('SELECT COUNT(*) as count FROM artifacts').get()) as any;
   // Use PostgreSQL date function if using PostgreSQL, otherwise SQLite
+  // For PostgreSQL, cast TEXT to TIMESTAMP for comparison
   const recentQuery = isPostgres
-    ? `SELECT COUNT(*) as count FROM artifacts WHERE "creationDate" > NOW() - INTERVAL '7 days'`
+    ? `SELECT COUNT(*) as count FROM artifacts WHERE "creationDate"::TIMESTAMP > NOW() - INTERVAL '7 days'`
     : `SELECT COUNT(*) as count FROM artifacts WHERE creationDate > datetime('now', '-7 days')`;
   const recentCount = await dbQuery(() => db.prepare(recentQuery).get()) as any;
   res.json({

@@ -372,7 +372,8 @@ app.delete('/api/artifacts/:id', async (req, res) => {
 
 // Stats endpoint
 app.get('/api/stats', async (_req, res) => {
-  const isPostgres = process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres://');
+  const databaseUrl = process.env.DATABASE_URL;
+  const isPostgres = databaseUrl && (databaseUrl.startsWith('postgres://') || databaseUrl.startsWith('postgresql://'));
   const catalogCount = await dbQuery(() => db.prepare('SELECT COUNT(*) as count FROM catalogs').get()) as any;
   const artifactCount = await dbQuery(() => db.prepare('SELECT COUNT(*) as count FROM artifacts').get()) as any;
   // Use PostgreSQL date function if using PostgreSQL, otherwise SQLite

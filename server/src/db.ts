@@ -124,10 +124,15 @@ if (databaseUrl) {
   console.log('   To use PostgreSQL, set DATABASE_URL environment variable');
 }
 
-if (databaseUrl && databaseUrl.startsWith('postgres://')) {
+// Check for both postgres:// and postgresql:// connection strings
+if (databaseUrl && (databaseUrl.startsWith('postgres://') || databaseUrl.startsWith('postgresql://'))) {
   // Use PostgreSQL in production (Render)
   console.log('🗄️  Using PostgreSQL database');
-  db = new PostgreSQLAdapter(databaseUrl);
+  // Normalize to postgres:// for pg library (it accepts both, but normalize for consistency)
+  const normalizedUrl = databaseUrl.startsWith('postgresql://') 
+    ? databaseUrl.replace('postgresql://', 'postgres://')
+    : databaseUrl;
+  db = new PostgreSQLAdapter(normalizedUrl);
 } else {
   // Use SQLite for local development
   console.log('🗄️  Using SQLite database (local development)');
@@ -137,7 +142,7 @@ if (databaseUrl && databaseUrl.startsWith('postgres://')) {
 
 // Initialize schema
 async function initializeSchema() {
-  const isPostgres = databaseUrl && databaseUrl.startsWith('postgres://');
+  const isPostgres = databaseUrl && (databaseUrl.startsWith('postgres://') || databaseUrl.startsWith('postgresql://'));
   
   if (isPostgres) {
     // PostgreSQL schema
@@ -266,7 +271,7 @@ async function initializeSchema() {
 }
 
 // Initialize schema on module load
-if (databaseUrl && databaseUrl.startsWith('postgres://')) {
+if (databaseUrl && (databaseUrl.startsWith('postgres://') || databaseUrl.startsWith('postgresql://'))) {
   // For PostgreSQL, we need to await
   initializeSchema().catch((error) => {
     console.error('Failed to initialize PostgreSQL schema:', error);
